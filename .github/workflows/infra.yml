@@ -1,0 +1,24 @@
+name: Infrastructure
+
+on:
+  push:
+    paths:
+      - "infra/**"
+      - "mise.toml"
+      - ".github/workflows/infra.yml"
+  pull_request:
+    paths:
+      - "infra/**"
+      - "mise.toml"
+      - ".github/workflows/infra.yml"
+
+jobs:
+  terraform:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: jdx/mise-action@v5.2.0
+      - run: terraform -chdir=infra fmt -check
+      - run: terraform -chdir=infra init -backend=false -input=false
+      - run: terraform -chdir=infra validate
+      - run: tflint --chdir=infra
