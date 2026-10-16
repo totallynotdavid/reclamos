@@ -1,5 +1,22 @@
+CREATE EXTENSION IF NOT EXISTS vector;
+CREATE EXTENSION IF NOT EXISTS unaccent;
+
+-- Spanish stemming over text with the accents removed, because scans and users
+-- drop them. Documents and queries both go through it.
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_ts_config WHERE cfgname = 'spanish_unaccent') THEN
+        CREATE TEXT SEARCH CONFIGURATION spanish_unaccent (COPY = spanish);
+        ALTER TEXT SEARCH CONFIGURATION spanish_unaccent
+            ALTER MAPPING FOR asciiword, word, numword, asciihword, hword, numhword,
+                              hword_asciipart, hword_part, hword_numpart
+            WITH unaccent, spanish_stem;
+    END IF;
+END
+$$;
+
 -- Each row represents a TRASU resolution published on gob.pe. The columns follow the
--- pipeline: discovery, download, extraction, parse. A stage that cannot finish
+-- pipeline: discovery, download, extraction, parse, chunking, embedding. A stage that cannot finish
 -- records failure_stage, failure_reason and failure_detail instead of leaving
 -- the row without an explanation. A later success clears them.
 CREATE TABLE IF NOT EXISTS resolutions (
@@ -31,7 +48,12 @@ CREATE TABLE IF NOT EXISTS resolutions (
     outcome text,
     parsed_at timestamptz,
 
-    failure_stage text CHECK (failure_stage IN ('download', 'extract', 'parse')),
+    chunked_at timestamptz,
+    embedded_at timestamptz,
+
+    failure_stage text CHECK (
+        failure_stage IN ('download', 'extract', 'parse', 'chunk', 'embed')
+    ),
     failure_reason text,
     failure_detail text,
     failed_at timestamptz,
@@ -48,3 +70,39 @@ CREATE TABLE IF NOT EXISTS listing_failures (
     failed_at timestamptz NOT NULL DEFAULT now(),
     PRIMARY KEY (start_date, end_date)
 );
+
+-- A passage of a resolution's body: body[char_start:char_end], on pages
+-- page_start to page_end (1-based). `search` indexes the text for full-text
+-- search; `embedding` is null until the resolution is embedded.
+-- `id` names one version of a passage: replacing a resolution's chunks gives
+-- new ids, so a vector computed for the old ones finds nothing to attach to.
+CREATE TABLE IF NOT EXISTS chunks (
+    id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    resolution_id bigint NOT NULL REFERENCES resolutions (id) ON DELETE CASCADE,
+    ordinal integer NOT NULL,
+    section text NOT NULL,
+    page_start integer NOT NULL,
+    page_end integer NOT NULL,
+    char_start integer NOT NULL,
+    char_end integer NOT NULL,
+    text text NOT NULL,
+    search tsvector GENERATED ALWAYS AS (to_tsvector('spanish_unaccent', text)) STORED,
+    embedding vector(1024),
+    UNIQUE (resolution_id, ordinal),
+    CHECK (char_start < char_end),
+    CHECK (page_start <= page_end)
+);
+
+-- The model that made the vectors in `chunks`: one row, written by the first
+-- embedding stored and by `reclamos corpus reindex embeddings`. A job that
+-- embedded with another model stores nothing.
+CREATE TABLE IF NOT EXISTS embedding_model (
+    only_row boolean PRIMARY KEY DEFAULT true CHECK (only_row),
+    model text NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS chunks_search_idx ON chunks USING gin (search);
+CREATE INDEX IF NOT EXISTS chunks_embedding_idx
+    ON chunks USING hnsw (embedding vector_cosine_ops);
+CREATE INDEX IF NOT EXISTS resolutions_filter_idx
+    ON resolutions (claim_type, outcome, resolved_on);

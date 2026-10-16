@@ -1,7 +1,8 @@
 from collections.abc import Sequence
 from datetime import date
-from typing import Any
+from typing import Any, Literal
 
+from reclamos_api.corpus.chunk import Chunk
 from reclamos_api.corpus.parse import Parsed
 from reclamos_api.corpus.site import ListedResolution
 
@@ -36,6 +37,10 @@ def next_stage(row: Any) -> str | None:
         return "download"
     if row["extracted_at"] is None:
         return "extract"
+    if row["chunked_at"] is None:
+        return "chunk"
+    if row["embedded_at"] is None:
+        return "embed"
     if row["parsed_at"] is None:
         return "parse"
     return None
@@ -46,10 +51,161 @@ async def unfinished_ids(connection: Connection) -> list[int]:
         """
         SELECT id FROM resolutions
         WHERE downloaded_at IS NULL OR extracted_at IS NULL OR parsed_at IS NULL
+           OR chunked_at IS NULL OR embedded_at IS NULL
         ORDER BY id
         """
     )
     return [row["id"] for row in rows]
+
+
+async def record_chunks(
+    connection: Connection, resolution_id: int, chunks: Sequence[Chunk]
+) -> None:
+    """Replace the resolution's chunks. Their embeddings are gone with them, so
+    the resolution is no longer embedded."""
+    async with connection.transaction():
+        await connection.execute(
+            "DELETE FROM chunks WHERE resolution_id = $1", resolution_id
+        )
+        await connection.executemany(
+            """
+            INSERT INTO chunks (resolution_id, ordinal, section, page_start, page_end,
+                                char_start, char_end, text)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+            """,
+            [
+                (
+                    resolution_id,
+                    c.ordinal,
+                    c.section,
+                    c.page_start,
+                    c.page_end,
+                    c.char_start,
+                    c.char_end,
+                    c.text,
+                )
+                for c in chunks
+            ],
+        )
+        await connection.execute(
+            """
+            UPDATE resolutions
+            SET chunked_at = now(), embedded_at = NULL,
+                failure_stage = NULL, failure_reason = NULL, failure_detail = NULL,
+                failed_at = NULL
+            WHERE id = $1
+            """,
+            resolution_id,
+        )
+
+
+async def chunk_texts(connection: Connection, resolution_id: int) -> list[Any]:
+    return await connection.fetch(
+        "SELECT id, text FROM chunks WHERE resolution_id = $1 ORDER BY ordinal",
+        resolution_id,
+    )
+
+
+EmbeddingsResult = Literal["stored", "chunks_replaced", "other_model"]
+
+
+async def record_embeddings(
+    connection: Connection,
+    resolution_id: int,
+    model: str,
+    vectors: Sequence[tuple[int, Sequence[float]]],
+) -> EmbeddingsResult:
+    """Store `model`'s vector for each (chunk id, vector) and mark the resolution
+    embedded. Nothing is stored when one of the chunks has been replaced since the
+    vectors were computed, or when the index holds another model's vectors."""
+    try:
+        async with connection.transaction():
+            return await _store_embeddings(connection, resolution_id, model, vectors)
+    except _ChunksReplaced:
+        return "chunks_replaced"
+
+
+class _ChunksReplaced(Exception):
+    """Raised inside the transaction so the vectors that did find a chunk are
+    rolled back with the rest."""
+
+
+async def _store_embeddings(
+    connection: Connection,
+    resolution_id: int,
+    model: str,
+    vectors: Sequence[tuple[int, Sequence[float]]],
+) -> EmbeddingsResult:
+    await connection.execute(
+        "INSERT INTO embedding_model (model) VALUES ($1) ON CONFLICT DO NOTHING",
+        model,
+    )
+    # A shared lock, so `reset_embeddings` waits for this transaction to finish.
+    held = await connection.fetchval("SELECT model FROM embedding_model FOR SHARE")
+    if held != model:
+        return "other_model"
+    status = await connection.execute(
+        """
+        UPDATE chunks SET embedding = wanted.embedding::vector
+        FROM unnest($1::bigint[], $2::text[]) AS wanted (id, embedding)
+        WHERE chunks.id = wanted.id
+        """,
+        [chunk_id for chunk_id, _ in vectors],
+        [vector_literal(vector) for _, vector in vectors],
+    )
+    if int(status.split()[-1]) != len(vectors):
+        raise _ChunksReplaced
+    await connection.execute(
+        """
+        UPDATE resolutions
+        SET embedded_at = now(),
+            failure_stage = NULL, failure_reason = NULL, failure_detail = NULL,
+            failed_at = NULL
+        WHERE id = $1
+        """,
+        resolution_id,
+    )
+    return "stored"
+
+
+def vector_literal(vector: Sequence[float]) -> str:
+    """The text form pgvector reads: `[0.1,0.2]`."""
+    return "[" + ",".join(repr(float(value)) for value in vector) + "]"
+
+
+async def reset_chunks(connection: Connection) -> int:
+    """Forget every chunk so the next crawl chunks and embeds each resolution
+    again. Returns the number of resolutions reset."""
+    async with connection.transaction():
+        await connection.execute("DELETE FROM chunks")
+        return await _count_updated(
+            connection,
+            "UPDATE resolutions SET chunked_at = NULL, embedded_at = NULL "
+            "WHERE chunked_at IS NOT NULL OR embedded_at IS NOT NULL",
+        )
+
+
+async def reset_embeddings(connection: Connection, model: str) -> int:
+    """Forget every embedding so the next crawl embeds each resolution again with
+    `model`. A job still running with another model stores nothing."""
+    async with connection.transaction():
+        await connection.execute(
+            """
+            INSERT INTO embedding_model (model) VALUES ($1)
+            ON CONFLICT (only_row) DO UPDATE SET model = EXCLUDED.model
+            """,
+            model,
+        )
+        await connection.execute("UPDATE chunks SET embedding = NULL")
+        return await _count_updated(
+            connection,
+            "UPDATE resolutions SET embedded_at = NULL WHERE embedded_at IS NOT NULL",
+        )
+
+
+async def _count_updated(connection: Connection, statement: str) -> int:
+    status = await connection.execute(statement)
+    return int(status.split()[-1])
 
 
 async def record_download(

@@ -1,6 +1,8 @@
 import os
 from dataclasses import dataclass
 
+DEFAULT_EMBEDDING_MODEL = "intfloat/multilingual-e5-large"
+
 
 @dataclass(frozen=True, slots=True)
 class Settings:
@@ -10,6 +12,8 @@ class Settings:
     pdf_store_path: str = ".data/pdfs"
     pdf_bucket: str | None = None
     s3_endpoint_url: str | None = None
+    embedding_model: str = DEFAULT_EMBEDDING_MODEL
+    embedding_cache_path: str = ".data/models"
 
     @classmethod
     def from_environment(cls) -> "Settings":
@@ -19,6 +23,8 @@ class Settings:
             pdf_store_path=os.environ.get("PDF_STORE_PATH", ".data/pdfs"),
             pdf_bucket=os.environ.get("PDF_BUCKET"),
             s3_endpoint_url=os.environ.get("S3_ENDPOINT_URL"),
+            embedding_model=os.environ.get("EMBEDDING_MODEL", DEFAULT_EMBEDDING_MODEL),
+            embedding_cache_path=os.environ.get("EMBEDDING_CACHE_PATH", ".data/models"),
         )
 
 

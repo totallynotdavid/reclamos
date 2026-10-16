@@ -8,6 +8,7 @@ from reclamos_api.config import Settings
 from reclamos_api.corpus.jobs import QUEUE_NAME, Pipeline
 from reclamos_api.corpus.site import Fetcher
 from reclamos_api.corpus.store import store_from_settings
+from reclamos_api.retrieval.embedder import embedder_from_settings
 
 
 async def wait_for_queue_schema(
@@ -37,7 +38,13 @@ async def run_worker() -> None:
         await wait_for_queue_schema(pool, queue_schema=settings.queue_schema)
         queue = Queue(pool, name=QUEUE_NAME, schema=settings.queue_schema)
         fetcher = Fetcher.create()
-        Pipeline(pool, queue, store_from_settings(settings), fetcher).register()
+        Pipeline(
+            pool,
+            queue,
+            store_from_settings(settings),
+            fetcher,
+            embedder_from_settings(settings),
+        ).register()
         try:
             await Worker(
                 queue,
