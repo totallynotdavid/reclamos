@@ -6,6 +6,8 @@ from fastapi.responses import JSONResponse
 from reclamos_api.config import Settings
 from reclamos_api.db import database_pool
 from reclamos_api.health import dependency_health
+from reclamos_api.retrieval.api import router as search_router
+from reclamos_api.retrieval.embedder import Embedder, embedder_from_settings
 
 
 @asynccontextmanager
@@ -16,11 +18,15 @@ async def lifespan(app: FastAPI):
     ) as pool:
         app.state.pool = pool
         app.state.queue_schema = settings.queue_schema
+        app.state.embedder = app.state.embedder or embedder_from_settings(settings)
         yield
 
 
-def create_app() -> FastAPI:
+def create_app(embedder: Embedder | None = None) -> FastAPI:
+    """`embedder` replaces the configured model, for tests."""
     app = FastAPI(title="Reclamos API", lifespan=lifespan)
+    app.state.embedder = embedder
+    app.include_router(search_router)
 
     @app.get("/health")
     async def health(request: Request) -> JSONResponse:
