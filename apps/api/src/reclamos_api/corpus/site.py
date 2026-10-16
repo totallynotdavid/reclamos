@@ -257,8 +257,10 @@ async def fetch_listing(fetcher: Fetcher, start: date, end: date) -> Listing:
 
 
 def parse_listing(javascript: str) -> Listing:
+    # A JavaScript string may hold a raw tab, which strict JSON forbids. The
+    # paginator markup of a long listing does.
     fragments = [
-        json.loads(f'"{literal}"')
+        json.loads(f'"{literal}"', strict=False)
         for literal in re.findall(r'\.html\("((?:[^"\\]|\\.)*)"\)', javascript)
     ]
     count = next(
