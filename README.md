@@ -26,6 +26,10 @@ The repository contains the FastAPI service in `apps/api`, the React web app in
 `apps/web`, the evaluation package in `packages/eval`, and AWS Terraform in
 `infra`. The measurement package exposes the shared exact-match accuracy metric.
 
+Build the corpus of TRASU resolutions and print what it holds with
+`reclamos corpus crawl` and `reclamos corpus stats`; see the
+[corpus guide](docs/corpus.md).
+
 Run the same checks as CI with:
 
 ```console

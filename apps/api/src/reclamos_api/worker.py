@@ -5,6 +5,9 @@ import asyncpg
 from rqueue import Queue, Worker
 
 from reclamos_api.config import Settings
+from reclamos_api.corpus.jobs import QUEUE_NAME, Pipeline
+from reclamos_api.corpus.site import Fetcher
+from reclamos_api.corpus.store import store_from_settings
 
 
 async def wait_for_queue_schema(
@@ -32,16 +35,16 @@ async def run_worker() -> None:
     pool = await asyncpg.create_pool(settings.database_url)
     try:
         await wait_for_queue_schema(pool, queue_schema=settings.queue_schema)
-        queue = Queue(pool, name="reclamos", schema=settings.queue_schema)
-
-        @queue.task(name="noop")
-        async def noop(payload: object, context: object) -> None:
-            del payload, context
-
-        await Worker(
-            queue,
-            worker_id=os.environ.get("WORKER_ID", "reclamos-worker"),
-        ).run()
+        queue = Queue(pool, name=QUEUE_NAME, schema=settings.queue_schema)
+        fetcher = Fetcher.create()
+        Pipeline(pool, queue, store_from_settings(settings), fetcher).register()
+        try:
+            await Worker(
+                queue,
+                worker_id=os.environ.get("WORKER_ID", "reclamos-worker"),
+            ).run()
+        finally:
+            await fetcher.aclose()
     finally:
         await pool.close()
 

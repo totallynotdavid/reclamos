@@ -1,6 +1,6 @@
 services:
   postgres:
-    image: pgvector/pgvector:pg18
+    image: postgres:18
     environment:
       POSTGRES_DB: reclamos
       POSTGRES_USER: postgres
@@ -38,8 +38,14 @@ services:
     environment:
       DATABASE_URL: postgresql://postgres:postgres@postgres:5432/reclamos
       WORKER_ID: compose-worker
+      PDF_STORE_PATH: /data/pdfs
+    volumes:
+      - pdfs:/data/pdfs
     depends_on:
       postgres:
         condition: service_healthy
       api:
         condition: service_healthy
+
+volumes:
+  pdfs:
