@@ -26,6 +26,10 @@ jobs:
     steps:
       - uses: actions/checkout@v7.0.1
       - uses: jdx/mise-action@v5.2.0
+      - run: sudo apt-get update
+      - run:
+          sudo apt-get install --yes --no-install-recommends poppler-utils
+          tesseract-ocr tesseract-ocr-spa
       - run: mise run api:lint
       - run: mise run api:typecheck
       - run: mise run api:test
