@@ -28,7 +28,8 @@ The repository contains the FastAPI service in `apps/api`, the React web app in
 
 Build the corpus of TRASU resolutions and print what it holds with
 `reclamos corpus crawl` and `reclamos corpus stats`; see the
-[corpus guide](docs/corpus.md).
+[corpus guide](docs/corpus.md). `POST /search` ranks passages of the corpus
+against a question; see [retrieval](docs/retrieval.md).
 
 Run the same checks as CI with:
 

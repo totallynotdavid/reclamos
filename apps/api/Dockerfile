@@ -11,4 +11,7 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 RUN uv sync --frozen --package reclamos-api --no-dev
 ENV PATH="/app/.venv/bin:$PATH"
+RUN python -c "from reclamos_api.config import Settings; \
+from reclamos_api.retrieval.embedder import embedder_from_settings; \
+embedder_from_settings(Settings.from_environment()).load()"
 CMD ["uvicorn", "reclamos_api.main:app", "--host", "0.0.0.0", "--port", "8000"]

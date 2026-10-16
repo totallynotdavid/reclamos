@@ -32,7 +32,8 @@ def docker_daemon_available() -> bool:
 def postgres_server() -> Iterator[str]:
     """URL of a PostgreSQL server the tests may create databases on.
 
-    TEST_DATABASE_URL names an existing server; otherwise a container starts.
+    TEST_DATABASE_URL names an existing server with the pgvector extension
+    installed; otherwise a container starts.
     """
     configured = os.environ.get("TEST_DATABASE_URL")
     if configured:
@@ -42,7 +43,7 @@ def postgres_server() -> Iterator[str]:
         pytest.skip(
             "Set TEST_DATABASE_URL or run a Docker daemon to get a PostgreSQL server"
         )
-    with PostgresContainer("postgres:18") as postgres:
+    with PostgresContainer("pgvector/pgvector:pg18") as postgres:
         yield postgres.get_connection_url().replace("postgresql+psycopg2", "postgresql")
 
 

@@ -175,7 +175,6 @@ def test_a_text_without_a_header_misses_everything() -> None:
     parsed = parse_resolution("Contrato de arrendamiento entre las partes.")
 
     assert parsed.missing == [
-        "number",
         "date",
         "operator",
         "kind",
@@ -238,3 +237,111 @@ def test_a_resolution_that_voids_a_step_has_no_claim_to_classify() -> None:
     assert parsed.outcome == "sin_efecto"
     assert parsed.claim_type == "procedural"
     assert parsed.missing == []
+
+
+# Resolutions before 2020 print no full number, spell the date out and label the
+# subject `CONCEPTOS RECLAMADOS`. Each text is an excerpt of a real scan.
+SCAN_2006 = """\
+S>OSIPTEL S
+RESOLUCIÓN: 1 EXPEDIENTE N* 12323-2006/TRASU/GUS-RA |
+o l RECURSO DE APELACION bla pa Enri i
+Lima, catorce de noviembre del dos mil seis |
+CONCEPTOS RECLAMADOS : Cargo fijo del Plan Súper Control 55 en el recibo de
+julio de dos mil seis.
+CICLO DE FACTURACIÓN : 20
+( o EMPRESA OPERADORA : AMERICA MOVIL PERU S.A.C. : i
+o “| NUMERO'DE RECLAMO : 0000042652 : > : : a es
+RESOLUCIÓN DE EMPRESA : Carta GCC/BOCLG-R-11355-06
+. OPERADORA
+RESOLUCIÓN DEL TRIBUNAL : FUNDADO úl
+VISTO : El expediente de la referencia.
+"""
+
+SCAN_2016_COLUMNS = """\
+EXPEDIENTE No 16733-2016lTRASUlST-RQJ
+QUEJA
+Lima, 4 de Agosto del 2016
+
+RECLAMANTE
+
+EMPRESA OPERADORA
+REFERENCIA
+                                                         : VIETTEL PERU S.A.C.
+
+                                                         : Carta No RQ-00398-16 de fecha 09 de junio de
+ESCRITO DE QUEJA                                          De fecha 06 de junio de 2016, por no permitir la
+                                                          presentación de una queja.
+
+RESOLUCIÓN DEL TRIBUNAL                                  : INFUNDADA
+VISTO: El expediente de la referencia.
+"""
+
+
+def test_reads_a_resolution_from_before_2020() -> None:
+    parsed = parse_resolution(SCAN_2006)
+
+    assert parsed.missing == []
+    assert parsed.number is None
+    assert parsed.resolved_on == date(2006, 11, 14)
+    assert parsed.operator == "AMERICA MOVIL PERU S.A.C."
+    assert parsed.appeal_kind == "apelacion"
+    assert parsed.claim_type == "billing"
+    assert parsed.outcome == "fundado"
+
+
+def test_reads_a_complaint_whose_scan_put_the_values_after_the_labels() -> None:
+    parsed = parse_resolution(SCAN_2016_COLUMNS)
+
+    assert parsed.missing == []
+    assert parsed.resolved_on == date(2016, 8, 4)
+    assert parsed.operator == "VIETTEL PERU S.A.C."
+    assert parsed.appeal_kind == "queja"
+    assert parsed.claim_type == "procedural"
+    assert parsed.outcome == "infundado"
+
+
+@pytest.mark.parametrize(
+    ("line", "expected"),
+    [
+        ("Lima, uno de febrero de dos mil siete.", date(2007, 2, 1)),
+        ("Lima, veintidós de noviembre del dos mil cinco.", date(2005, 11, 22)),
+        ("Lima, treinta y uno de enero de dos mil nueve", date(2009, 1, 31)),
+        ("Lima, 30 de diciembre del año dos mil tres.", date(2003, 12, 30)),
+        ("Lima, 29 de diciembre det 2017", date(2017, 12, 29)),
+        ("Lima, 26 de junio dal 2018 Ñ", date(2018, 6, 26)),
+        ("Lima. 25 de marzo de 2014", date(2014, 3, 25)),
+    ],
+)
+def test_reads_a_date_spelled_in_words_or_misread(line: str, expected: date) -> None:
+    assert parse_resolution(f"RECURSO DE APELACION\n{line}\n").resolved_on == expected
+
+
+def test_a_date_that_does_not_exist_is_not_read() -> None:
+    assert parse_resolution("Lima, 31 de febrero de 2020\n").resolved_on is None
+
+
+def test_the_page_summary_fills_what_the_scan_lost() -> None:
+    scan = SCAN_2006.replace("RESOLUCIÓN DEL TRIBUNAL : FUNDADO úl", "").replace(
+        "CONCEPTOS RECLAMADOS :", "XXXX :"
+    )
+    summary = (
+        "Sumilla: Declaran\nfundada\nla Apelación por la facturación del cargo fijo."
+    )
+
+    parsed = parse_resolution(scan, summary=summary)
+
+    assert parsed.outcome == "fundado"
+    assert parsed.claim_type == "billing"
+
+
+@pytest.mark.parametrize(
+    ("summary", "outcome"),
+    [
+        ("Sumilla: Declaran INFUNDADO el recurso", "infundado"),
+        ("Sumilla: Declaran\nparcialmente\nfundado\nel recurso", "fundado_en_parte"),
+        ("Sumilla: Declaran improcedente Queja en la cual", "improcedente"),
+        ("Se declara\nFUNDADA\nla queja por silencio", "fundado"),
+    ],
+)
+def test_reads_the_ruling_the_page_summary_states(summary: str, outcome: str) -> None:
+    assert parse_resolution("sin cabecera", summary=summary).outcome == outcome

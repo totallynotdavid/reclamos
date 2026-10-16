@@ -42,6 +42,20 @@ def fetcher_for(site: RecordedSite, clock: FakeClock | None = None) -> Fetcher:
     return Fetcher(client, min_interval=1.0, clock=clock, sleep=clock.sleep)
 
 
+def test_a_raw_tab_inside_a_listing_string_does_not_hide_the_resolutions() -> None:
+    # The paginator markup of a long listing carries tabs the server never escapes.
+    javascript = (FIXTURES / "listing-2022.js").read_text()
+    javascript += (
+        '\n    $(".js-official-documents-search-pagination").html('
+        '"<nav>\t<a>1</a>\t</nav>")\n'
+    )
+
+    listing = parse_listing(javascript)
+
+    assert listing.total == 8
+    assert sorted(item.id for item in listing.items) == sorted(LISTED_IDS)
+
+
 def test_the_listing_names_every_resolution() -> None:
     listing = parse_listing((FIXTURES / "listing-2022.js").read_text())
 

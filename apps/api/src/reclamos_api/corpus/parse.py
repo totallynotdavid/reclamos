@@ -10,7 +10,7 @@ import re
 import unicodedata
 from dataclasses import dataclass, field
 from datetime import date
-from difflib import get_close_matches
+from difflib import SequenceMatcher, get_close_matches
 
 HEADER_CHARS = 3500
 
@@ -33,11 +33,15 @@ MONTHS = {
 # These labels end the value of the preceding field.
 _LABELS = (
     r"RECLAMANTE|SERVICIO|EMPRESA\s+OPERADORA|MATERIA\s+RECLAMADA|"
-    r"CONCEPTO\s+(?:RECLAMADO|CUESTIONADO)|ESCRITO\s+DE\s+QUEJA|C.DIGO\s+DE\s+RECLAMO|"
+    r"CONCEPTOS?\s+(?:RECLAMADOS?|CUESTIONADOS?)|ESCRITO\s+DE\s+QUEJA|C.DIGO\s+DE\s+RECLAMO|"
     r"RESOLUCI.N\s+(?:IMPUGNADA|DE\s+(?:LA\s+)?EMPRESA|DEL\s+TRIBUNAL|DEL\s+TRASU)|"
-    r"SENTIDO\s+DE\s+LA\s+RESOLUCI.N|N.MERO\s+DE\s+SERVICIO|SUMILLA|"
+    r"SENTIDO\s+DE\s+LA\s+RESOLUCI.N|N.MERO\s+DE\s+(?:SERVICIO|RECLAMO)|"
+    r"CICLO\s+DE\s+FACTURACI.N|SUMILLA|"
     r"REFERENCIA|RECLAMO\s+EN\s+.{1,4}\s+INSTANCIA|VISTO|ANTECEDENTES"
 )
+
+# A scan leaves a stray mark, a border or one or two characters before a label.
+_NOISE = r"[ \t]*(?:(?:[^\W_]{1,2}[ \t]+|[^\w\s]{1,3}[ \t]*)){0,3}"
 
 # Operators whose names scans often damage. A name that is close to one of
 # these takes the spelling here; any other name is kept as printed.
@@ -46,6 +50,10 @@ KNOWN_OPERATORS = (
     "ENTEL PERU S.A.",
     "INTEGRATEL PERU S.A.A.",
     "TELEFONICA DEL PERU S.A.A.",
+    "TELEFONICA MOVILES S.A.",
+    "NEXTEL DEL PERU S.A.",
+    "AMERICATEL PERU S.A.",
+    "TELMEX PERU S.A.",
     "VIETTEL PERU S.A.C.",
     "WIN NET - TELECOM S.A.C.",
     "WOW TEL S.A.C.",
@@ -55,11 +63,25 @@ _NUMBER = re.compile(
     r"(\d{6,8})\s*-\s*(\d{4})\s*-\s*TRASU\s*/\s*OSIPTEL", re.IGNORECASE
 )
 _EXPEDIENTE = re.compile(
-    r"\d{6,8}\s*-\s*\d{4}\s*/\s*TRASU\s*/\s*ST\s*-\s*(RA|RQJ)", re.IGNORECASE
+    r"\d{4,8}\s*-\s*\d{4}\s*.?\s*TRASU\s*[/lI|]?\s*(?:ST|GUS)?\s*[-/lI|]?\s*(RA|RQJ)\b",
+    re.IGNORECASE,
 )
+# The date line, as `Lima, 14 de noviembre del 2017` or, in older resolutions,
+# `Lima, catorce de noviembre del dos mil seis`. `del` is often misread.
 _DATE = re.compile(
-    r"Lima,?\s+(\d{1,2})\s+de\s+([^\W\d_]+)\s+de(?:l)?\s+(\d{4})", re.IGNORECASE
+    r"Lima[,.]?[ \t]+([^\W_][\w ]{0,20}?)[ \t]+de[ \t]+([^\W\d_]+)[ \t]+d[^\W\d_]{1,2}[ \t]+"
+    r"(?:año[ \t]+)?([^\n]{3,40})",
+    re.IGNORECASE,
 )
+_UNIT_WORDS = (
+    ("cero", "uno", "dos", "tres", "cuatro", "cinco", "seis", "siete", "ocho", "nueve")
+    + ("diez", "once", "doce", "trece", "catorce", "quince", "dieciseis")
+    + ("diecisiete", "dieciocho", "diecinueve", "veinte", "veintiuno", "veintidos")
+    + ("veintitres", "veinticuatro", "veinticinco", "veintiseis", "veintisiete")
+    + ("veintiocho", "veintinueve")
+)
+_UNITS = {word: number for number, word in enumerate(_UNIT_WORDS)} | {"primero": 1}
+_TENS = {"treinta": 30, "cuarenta": 40, "cincuenta": 50}
 _LEGAL_SUFFIX = re.compile(r"\b(?:S\.A\.A|S\.A\.C|S\.A|S\.R\.L|E\.I\.R\.L)\b\.?")
 
 # The first group whose keywords appear in the subject wins, so the order puts
@@ -145,17 +167,18 @@ def parse_resolution(body: str, *, summary: str = "") -> Parsed:
         appeal_kind=_appeal_kind(header),
     )
     parsed.subject = _subject(header)
-    parsed.outcome = _outcome(header) or _ruling_in(summary)
+    parsed.outcome = _outcome(header) or _ruling_in(summary) or _sumilla_ruling(summary)
+    if parsed.appeal_kind is None:
+        parsed.appeal_kind = _sumilla_kind(summary)
     if parsed.outcome == "sin_efecto":
         # The Tribunal sent the file back to the operator without ruling on a claim.
         parsed.claim_type = "procedural"
-    elif parsed.subject or parsed.appeal_kind == "queja":
+    else:
         parsed.claim_type = claim_type(
             parsed.subject or "", appeal_kind=parsed.appeal_kind
-        )
+        ) or claim_type(_sumilla_topic(summary), appeal_kind=parsed.appeal_kind)
 
     checks = (
-        ("number", parsed.number),
         ("date", parsed.resolved_on),
         ("operator", parsed.operator),
         ("kind", parsed.appeal_kind),
@@ -200,12 +223,44 @@ def _date(header: str) -> date | None:
     if month is None:
         close = get_close_matches(_plain(month_name), MONTHS, n=1, cutoff=0.8)
         month = MONTHS[close[0]] if close else None
-    if month is None:
+    day = _number_in(match[1])
+    year = _year_in(match[3])
+    if month is None or day is None or year is None:
         return None
     try:
-        return date(int(match[3]), month, int(match[1]))
+        return date(year, month, day)
     except ValueError:
         return None
+
+
+def _number_in(text: str) -> int | None:
+    """A number written in digits or in words from one to fifty-nine."""
+    digits = re.fullmatch(r"\s*(\d{1,2})\s*", text)
+    if digits:
+        return int(digits[1])
+    words = [_plain(word).lower() for word in re.findall(r"[^\W\d_]+", text)]
+    if len(words) == 1:
+        return _UNITS.get(words[0]) or _TENS.get(words[0])
+    if len(words) == 3 and words[1] == "y" and words[0] in _TENS and words[2] in _UNITS:
+        return _TENS[words[0]] + _UNITS[words[2]]
+    return None
+
+
+def _year_in(text: str) -> int | None:
+    digits = re.match(r"\s*(\d{4})\b", text)
+    if digits:
+        return int(digits[1])
+    spelled = re.match(r"\s*dos\s+mil\b\s*([^\n.,;]*)", _plain(text), re.IGNORECASE)
+    if not spelled:
+        return None
+    rest = spelled[1].strip()
+    # Scan noise can trail the year, so read the longest number that parses.
+    words = rest.split()
+    for length in range(min(3, len(words)), 0, -1):
+        value = _number_in(" ".join(words[:length]))
+        if value is not None:
+            return 2000 + value
+    return None
 
 
 def _appeal_kind(header: str) -> str | None:
@@ -222,26 +277,28 @@ def _appeal_kind(header: str) -> str | None:
 
 def _field(header: str, label: str) -> str | None:
     """The text after a label, up to the next label. Line breaks are kept."""
-    pattern = rf"^[ \t]*(?:{label})[ \t]*[:;>_]?(.*?)(?=^[ \t]*(?:{_LABELS})\b|\Z)"
+    pattern = (
+        rf"^{_NOISE}(?:{label})[ \t]*[:;>_\-–—]?(.*?)"
+        rf"(?=^{_NOISE}(?:{_LABELS})\b|\Z)"
+    )
     match = re.search(pattern, header, re.IGNORECASE | re.MULTILINE | re.DOTALL)
     if not match:
         return None
-    return match[1].lstrip(":;>_ \t").strip() or None
+    return match[1].lstrip(":;>_-–— \t").strip() or None
 
 
 def _operator(header: str, summary: str) -> str | None:
     """The operator's name. The page's own `Empresa:` line is typed text, so it
     wins over the scan when the page has one."""
     named = re.search(r"^Empresa:(.*)$", summary, re.IGNORECASE | re.MULTILINE)
-    value = named[1] if named else _field(header, r"EMPRESA\s+OPERADORA")
+    value = named[1] if named else _field(header, r"EMPRESA\s*OPERADORA")
     if not value or not value.strip():
-        return None
+        # A table scanned as columns puts the values after all the labels.
+        return _known_operator_in(header)
     name = _squash(_plain(value.splitlines()[0]).upper())
     # Scan noise follows the name on the same line, with or without a space.
-    letters = _letters(name)
-    for known in KNOWN_OPERATORS:
-        if letters.startswith(_letters(_LEGAL_SUFFIX.sub("", known))):
-            return known
+    if known := _known_operator(_letters(name)):
+        return known
     suffix = _LEGAL_SUFFIX.search(name)
     if not suffix:
         # A name with neither a known operator nor a legal form is a misread
@@ -252,6 +309,24 @@ def _operator(header: str, summary: str) -> str | None:
     return close[0] if close else name
 
 
+def _known_operator_in(header: str) -> str | None:
+    for line in header.splitlines():
+        if not line.lstrip().startswith(":"):
+            continue
+        if known := _known_operator(_letters(line)):
+            return known
+    return None
+
+
+def _known_operator(letters: str) -> str | None:
+    """The known operator whose name opens `letters`, allowing for misread letters."""
+    for known in KNOWN_OPERATORS:
+        stem = _letters(_LEGAL_SUFFIX.sub("", known))
+        if SequenceMatcher(None, letters[: len(stem)], stem).ratio() >= 0.9:
+            return known
+    return None
+
+
 def _letters(text: str) -> str:
     return re.sub(r"[^A-Z]", "", _plain(text).upper())
 
@@ -259,12 +334,15 @@ def _letters(text: str) -> str:
 def _subject(header: str) -> str | None:
     value = _field(
         header,
-        r"MATERIA\s+RECLAMADA|CONCEPTO\s+(?:RECLAMADO|CUESTIONADO)|ESCRITO\s+DE\s+QUEJA",
+        r"MATERIA\s+RECLAMADA|CONCEPTOS?\s+(?:RECLAMADOS?|CUESTIONADOS?)|ESCRITO\s+DE\s+QUEJA",
     )
     return _squash(value) if value else None
 
 
 OUTCOMES = ("infundado", "fundado", "improcedente")
+# Every value the `outcome` and `claim_type` columns can hold.
+OUTCOME_NAMES = (*OUTCOMES, "fundado_en_parte", "mixto", "sin_efecto")
+CLAIM_TYPE_NAMES = (*(name for name, _ in CLAIM_TYPES), "procedural")
 
 
 def _outcome(header: str) -> str | None:
@@ -290,6 +368,41 @@ def _ruling_in(value: str) -> str | None:
     if len(rulings) > 1:
         return "mixto"
     return next(iter(rulings), None)
+
+
+def _sumilla_ruling(summary: str) -> str | None:
+    """The ruling the page's own summary states, as in `Declaran fundada ...`,
+    typed in lower case as often as in capitals."""
+    declared = re.search(r"Declar\w*\s+([^\n]*\n?[^\n]*)", summary, re.IGNORECASE)
+    if not declared:
+        return None
+    text = _plain(declared[1][:80]).lower()
+    if re.search(r"parcial|en\s+parte", text):
+        return "fundado_en_parte"
+    if re.search(r"sin\s+efecto", text):
+        return "sin_efecto"
+    for word in re.findall(r"[a-z]{6,}", text):
+        if ruling := _ruling(word):
+            return ruling
+    return None
+
+
+def _sumilla_kind(summary: str) -> str | None:
+    """Whether the summary says the resolution decides an appeal or a complaint."""
+    declared = re.search(r"Declar\w*\s+([^\n]*\n?[^\n]*)", summary, re.IGNORECASE)
+    if not declared:
+        return None
+    text = _plain(declared[1][:120]).lower()
+    appeal = "apelacion" in text
+    complaint = re.search(r"\bqueja\b", text) is not None
+    if appeal != complaint:
+        return "apelacion" if appeal else "queja"
+    return None
+
+
+def _sumilla_topic(summary: str) -> str:
+    """What the summary says the claim was about: its first sentence-sized stretch."""
+    return summary.split("Sumilla:", 1)[-1][:400]
 
 
 def _ruling(word: str) -> str | None:

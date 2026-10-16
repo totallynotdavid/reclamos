@@ -9,6 +9,9 @@ class CorpusStats:
     extracted: int
     extraction_methods: dict[str, int]
     parsed: int
+    chunked: int
+    chunks: int
+    embedded: int
     failures: dict[tuple[str, str], int]
     claim_types: dict[str, int]
     outcomes: dict[str, int]
@@ -27,10 +30,13 @@ async def collect_stats(pool: Any, *, queue_schema: str) -> CorpusStats:
             SELECT count(*) AS found,
                    count(downloaded_at) AS downloaded,
                    count(extracted_at) AS extracted,
-                   count(parsed_at) AS parsed
+                   count(parsed_at) AS parsed,
+                   count(chunked_at) AS chunked,
+                   count(embedded_at) AS embedded
             FROM resolutions
             """
         )
+        chunks = await connection.fetchval("SELECT count(*) FROM chunks")
         methods = await connection.fetch(
             """
             SELECT text_method, count(*) FROM resolutions
@@ -63,6 +69,9 @@ async def collect_stats(pool: Any, *, queue_schema: str) -> CorpusStats:
         extracted=totals["extracted"],
         extraction_methods={row[0]: row[1] for row in methods},
         parsed=totals["parsed"],
+        chunked=totals["chunked"],
+        chunks=chunks,
+        embedded=totals["embedded"],
         failures={(row[0], row[1]): row[2] for row in failures},
         claim_types={row[0]: row[1] for row in claim_types},
         outcomes={row[0]: row[1] for row in outcomes},
@@ -78,6 +87,8 @@ def format_stats(stats: CorpusStats) -> str:
         f"extracted               {stats.extracted}"
         + _breakdown(stats.extraction_methods),
         f"parsed                  {stats.parsed}",
+        f"chunked                 {stats.chunked}  ({stats.chunks} chunks)",
+        f"embedded                {stats.embedded}",
         f"failed                  {stats.failed}",
     ]
     for (stage, reason), count in sorted(stats.failures.items()):

@@ -1,8 +1,11 @@
-"""The corpus pipeline as rqueue jobs: discover, download, extract, parse.
+"""The corpus pipeline as rqueue jobs: discover, download, extract, chunk, embed,
+parse.
 
 A resolution row says which stage is next (`repository.next_stage`). Each job
 checks its stage first, so a re-run skips finished work, and enqueues the next
 stage when it finishes. A stage that cannot finish writes its reason on the row.
+Parse comes last because it only fills the fields that filter a search: a
+resolution whose header the scan damaged is still searchable.
 """
 
 import hashlib
@@ -12,6 +15,7 @@ from typing import Any
 
 import asyncpg
 from reclamos_api.corpus import repository
+from reclamos_api.corpus.chunk import chunk_text
 from reclamos_api.corpus.extract import ExtractionError, extract_text
 from reclamos_api.corpus.parse import parse_resolution
 from reclamos_api.corpus.site import (
@@ -22,6 +26,7 @@ from reclamos_api.corpus.site import (
     split_window,
 )
 from reclamos_api.corpus.store import ObjectStore
+from reclamos_api.retrieval.embedder import Embedder
 from rqueue import Queue, TaskContext
 
 QUEUE_NAME = "reclamos"
@@ -29,22 +34,39 @@ DISCOVER = "corpus.discover"
 
 
 class StageFailure(Exception):
-    """The stage cannot succeed for this resolution, now or on a retry."""
+    """The stage cannot succeed for this resolution in this process. It cannot
+    succeed on a retry either, unless `transient`: another process may succeed."""
 
-    def __init__(self, reason: str, detail: str = "") -> None:
+    def __init__(
+        self, reason: str, detail: str = "", *, transient: bool = False
+    ) -> None:
         super().__init__(reason)
         self.reason = reason
         self.detail = detail
+        self.transient = transient
+
+
+class ChunksReplaced(Exception):
+    """The chunks a job embedded were replaced before it stored the vectors."""
+
+    def __init__(self, resolution_id: int) -> None:
+        super().__init__(f"chunks of resolution {resolution_id} were replaced")
 
 
 class Pipeline:
     def __init__(
-        self, pool: asyncpg.Pool, queue: Queue, store: ObjectStore, fetcher: Fetcher
+        self,
+        pool: asyncpg.Pool,
+        queue: Queue,
+        store: ObjectStore,
+        fetcher: Fetcher,
+        embedder: Embedder,
     ) -> None:
         self.pool = pool
         self.queue = queue
         self.store = store
         self.fetcher = fetcher
+        self.embedder = embedder
 
     def register(self) -> None:
         self.queue.register(name=DISCOVER, handler=self.discover)
@@ -56,6 +78,12 @@ class Pipeline:
         )
         self.queue.register(
             name="corpus.parse", handler=self._guarded("parse", self._parse)
+        )
+        self.queue.register(
+            name="corpus.chunk", handler=self._guarded("chunk", self._chunk)
+        )
+        self.queue.register(
+            name="corpus.embed", handler=self._guarded("embed", self._embed)
         )
 
     async def enqueue_discovery(self, start: date, end: date) -> None:
@@ -153,30 +181,28 @@ class Pipeline:
             )
 
     async def _download(self, resolution_id: int) -> None:
-        async with self.pool.acquire() as connection:
-            row = await repository.get(connection, resolution_id)
-            if row["downloaded_at"] is None:
-                try:
-                    response = await self.fetcher.get(row["page_url"])
-                    page = parse_resolution_page(
-                        response.text, base_url=row["page_url"]
-                    )
-                except ValueError as error:
-                    raise StageFailure(str(error)) from None
-                except FetchError as error:
-                    raise FetchError(
-                        f"page_{error.reason}", permanent=error.permanent
-                    ) from None
-                try:
-                    pdf = await self.fetcher.get(page.pdf_url)
-                except FetchError as error:
-                    raise FetchError(
-                        f"pdf_{error.reason}", permanent=error.permanent
-                    ) from None
-                if not pdf.content.startswith(b"%PDF"):
-                    raise StageFailure("not_a_pdf", pdf.headers.get("content-type", ""))
-                key = f"resolutions/{resolution_id}.pdf"
-                await self.store.put(key, pdf.content, content_type="application/pdf")
+        row = await self._row(resolution_id)
+        if row["downloaded_at"] is None:
+            try:
+                response = await self.fetcher.get(row["page_url"])
+                page = parse_resolution_page(response.text, base_url=row["page_url"])
+            except ValueError as error:
+                raise StageFailure(str(error)) from None
+            except FetchError as error:
+                raise FetchError(
+                    f"page_{error.reason}", permanent=error.permanent
+                ) from None
+            try:
+                pdf = await self.fetcher.get(page.pdf_url)
+            except FetchError as error:
+                raise FetchError(
+                    f"pdf_{error.reason}", permanent=error.permanent
+                ) from None
+            if not pdf.content.startswith(b"%PDF"):
+                raise StageFailure("not_a_pdf", pdf.headers.get("content-type", ""))
+            key = f"resolutions/{resolution_id}.pdf"
+            await self.store.put(key, pdf.content, content_type="application/pdf")
+            async with self.pool.acquire() as connection:
                 await repository.record_download(
                     connection,
                     resolution_id,
@@ -186,15 +212,13 @@ class Pipeline:
                     sha256=hashlib.sha256(pdf.content).hexdigest(),
                     size=len(pdf.content),
                 )
-            await self._advance(
-                connection, await repository.get(connection, resolution_id)
-            )
+        await self._advance_resolution(resolution_id)
 
     async def _extract(self, resolution_id: int) -> None:
-        async with self.pool.acquire() as connection:
-            row = await repository.get(connection, resolution_id)
-            if row["extracted_at"] is None:
-                extracted = await extract_text(await self.store.get(row["pdf_key"]))
+        row = await self._row(resolution_id)
+        if row["extracted_at"] is None:
+            extracted = await extract_text(await self.store.get(row["pdf_key"]))
+            async with self.pool.acquire() as connection:
                 await repository.record_extraction(
                     connection,
                     resolution_id,
@@ -203,9 +227,7 @@ class Pipeline:
                     pages=extracted.pages,
                     ocr_pages=extracted.ocr_pages,
                 )
-            await self._advance(
-                connection, await repository.get(connection, resolution_id)
-            )
+        await self._advance_resolution(resolution_id)
 
     async def _parse(self, resolution_id: int) -> None:
         async with self.pool.acquire() as connection:
@@ -217,8 +239,64 @@ class Pipeline:
                     parse_resolution(row["body"], summary=row["summary"] or ""),
                 )
 
+    async def _chunk(self, resolution_id: int) -> None:
+        row = await self._row(resolution_id)
+        if row["chunked_at"] is None:
+            chunks = chunk_text(row["body"])
+            async with self.pool.acquire() as connection:
+                await repository.record_chunks(connection, resolution_id, chunks)
+        await self._advance_resolution(resolution_id)
+
+    async def _embed(self, resolution_id: int) -> None:
+        row = await self._row(resolution_id)
+        # With no chunks there is nothing to embed: the chunk job queues this
+        # stage when it finishes.
+        if row["chunked_at"] is not None and row["embedded_at"] is None:
+            async with self.pool.acquire() as connection:
+                chunks = await repository.chunk_texts(connection, resolution_id)
+            vectors = await self.embedder.embed_passages(
+                [chunk["text"] for chunk in chunks]
+            )
+            async with self.pool.acquire() as connection:
+                stored = await repository.record_embeddings(
+                    connection,
+                    resolution_id,
+                    self.embedder.model,
+                    [(c["id"], v) for c, v in zip(chunks, vectors, strict=True)],
+                )
+            if stored == "other_model":
+                # A process that runs the index's model, the CLI or a redeployed
+                # worker, can claim the retry. Only the last attempt records it.
+                raise StageFailure(
+                    "other_model",
+                    f"embedded with {self.embedder.model}, "
+                    "but the index holds vectors of another model",
+                    transient=True,
+                )
+            if stored == "chunks_replaced":
+                # Fails the attempt, and rqueue runs the job again on the new
+                # chunks. Returning would leave this job holding the stage's
+                # dedupe key, so nothing could queue the stage again.
+                raise ChunksReplaced(resolution_id)
+        await self._advance_resolution(resolution_id)
+
+    async def _row(self, resolution_id: int) -> Any:
+        """Read a resolution and give the connection back, so a stage that waits
+        on the network, OCR or the model holds none. A worker that cannot get a
+        connection cannot renew its leases."""
+        async with self.pool.acquire() as connection:
+            return await repository.get(connection, resolution_id)
+
+    async def _advance_resolution(self, resolution_id: int) -> None:
+        async with self.pool.acquire() as connection:
+            await self._advance(
+                connection, await repository.get(connection, resolution_id)
+            )
+
 
 def _is_transient(failure: Exception) -> bool:
     if isinstance(failure, FetchError):
         return not failure.permanent
+    if isinstance(failure, StageFailure):
+        return failure.transient
     return isinstance(failure, ExtractionError) and failure.reason == "tool_missing"

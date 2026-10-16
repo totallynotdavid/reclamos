@@ -7,6 +7,7 @@ from typing import Any
 import asyncpg
 import httpx
 import pytest
+from fakeembed import HashingEmbedder
 from gobpe import FIXTURES, LISTED_IDS, RECORDED_IDS, RecordedSite
 from reclamos_api import cli
 from reclamos_api.config import Settings
@@ -56,6 +57,11 @@ def recorded_fetcher(site: RecordedSite) -> Fetcher:
     return Fetcher.create(min_interval=0, transport=httpx.MockTransport(site))
 
 
+def crawl_main(argv: list[str], **options: Any) -> None:
+    """Run a `reclamos` command with the fake embedder."""
+    cli.main(argv, embedder=HashingEmbedder(), **options)
+
+
 def query(settings: Settings, statement: str, *arguments: Any) -> list[Any]:
     async def run() -> list[Any]:
         connection = await asyncpg.connect(settings.database_url)
@@ -85,7 +91,7 @@ def run_jobs(
                 await seed(pool, store)
             queue = Queue(pool, name=QUEUE_NAME, schema=settings.queue_schema)
             fetcher = recorded_fetcher(site)
-            pipeline = Pipeline(pool, queue, store, fetcher)
+            pipeline = Pipeline(pool, queue, store, fetcher, HashingEmbedder())
             pipeline.register()
             await pipeline.enqueue_unfinished()
             await Worker(queue, worker_id="test").drain()
@@ -126,7 +132,7 @@ def test_crawl_ingests_the_recorded_site_and_a_rerun_skips_finished_work(
     tmp_path: Path,
 ) -> None:
     first_site = RecordedSite()
-    cli.main(CRAWL, fetcher=recorded_fetcher(first_site))
+    crawl_main(CRAWL, fetcher=recorded_fetcher(first_site))
     first_output = capsys.readouterr().out
 
     rows = {
@@ -166,6 +172,7 @@ def test_crawl_ingests_the_recorded_site_and_a_rerun_skips_finished_work(
         "resolutions found       8",
         "downloaded              3",
         "parsed                  3",
+        "embedded                3",
         "failed                  5",
         stat("  download: page_http_404", 5),
         stat("  billing", 1),
@@ -186,7 +193,7 @@ def test_crawl_ingests_the_recorded_site_and_a_rerun_skips_finished_work(
     }
 
     second_site = RecordedSite()
-    cli.main(CRAWL, fetcher=recorded_fetcher(second_site))
+    crawl_main(CRAWL, fetcher=recorded_fetcher(second_site))
     second_output = capsys.readouterr().out
 
     assert second_output == first_output
@@ -226,7 +233,7 @@ def test_a_wide_window_is_split_until_the_listing_is_complete(
         return site(request)
 
     fetcher = Fetcher.create(min_interval=0, transport=httpx.MockTransport(narrow_only))
-    cli.main(
+    crawl_main(
         ["corpus", "crawl", "--since", "2022-01-01", "--until", "2022-12-31"],
         fetcher=fetcher,
     )
@@ -258,7 +265,7 @@ def test_a_day_with_more_entries_than_a_page_is_recorded_as_a_failed_listing(
             )
         return reply
 
-    cli.main(
+    crawl_main(
         day,
         fetcher=Fetcher.create(
             min_interval=0, transport=httpx.MockTransport(always_truncated)
@@ -285,7 +292,7 @@ def test_a_day_with_more_entries_than_a_page_is_recorded_as_a_failed_listing(
             return httpx.Response(404)
         return site(request)
 
-    cli.main(
+    crawl_main(
         day,
         fetcher=Fetcher.create(
             min_interval=0, transport=httpx.MockTransport(listing_only)
@@ -300,13 +307,15 @@ def test_a_day_with_more_entries_than_a_page_is_recorded_as_a_failed_listing(
 def test_stats_of_an_empty_corpus(
     environment: Settings, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    cli.main(["corpus", "stats"])
+    crawl_main(["corpus", "stats"])
 
     assert capsys.readouterr().out.splitlines() == [
         "resolutions found       0",
         "downloaded              0",
         "extracted               0",
         "parsed                  0",
+        "chunked                 0  (0 chunks)",
+        "embedded                0",
         "failed                  0",
         "claim types",
         "  none",
@@ -354,11 +363,20 @@ def test_a_resolution_that_cannot_be_parsed_keeps_its_text_and_the_reason(
     (row,) = query(environment, "SELECT * FROM resolutions WHERE id = 102")
     assert "solo una carta" in row["body"]
     assert row["parsed_at"] is None
-    assert (row["failure_stage"], row["failure_reason"]) == ("parse", "no_number")
-    assert row["failure_detail"].startswith("missing: number, date, operator")
+    assert (row["failure_stage"], row["failure_reason"]) == ("parse", "no_date")
+    assert row["failure_detail"].startswith("missing: date, operator")
+    # A damaged header costs the filters, not the search.
+    assert row["chunked_at"] is not None
+    assert row["embedded_at"] is not None
+    assert (
+        query(
+            environment, "SELECT count(*) AS n FROM chunks WHERE resolution_id = 102"
+        )[0]["n"]
+        == 1
+    )
 
-    cli.main(["corpus", "stats"])
-    assert stat("  parse: no_number", 1) in capsys.readouterr().out.splitlines()
+    crawl_main(["corpus", "stats"])
+    assert stat("  parse: no_date", 1) in capsys.readouterr().out.splitlines()
 
 
 @pytest.mark.skipif(
