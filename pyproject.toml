@@ -1,0 +1,27 @@
+[project]
+name = "reclamos-workspace"
+version = "0.1.0"
+requires-python = ">=3.13,<3.14"
+
+[tool.uv.workspace]
+members = ["apps/api", "packages/eval"]
+
+[tool.uv]
+default-groups = ["dev"]
+
+[dependency-groups]
+dev = [
+  "basedpyright>=1.39.9",
+  "pytest>=9.0.0",
+]
+
+[tool.basedpyright]
+pythonVersion = "3.13"
+typeCheckingMode = "basic"
+reportAny = "none"
+reportExplicitAny = "none"
+reportMissingTypeStubs = "none"
+reportUnknownArgumentType = "none"
+reportUnknownMemberType = "none"
+reportUnknownVariableType = "none"
+reportUnusedCallResult = "none"

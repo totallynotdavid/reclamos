@@ -1,0 +1,13 @@
+FROM ghcr.io/astral-sh/uv:python3.13-bookworm-slim
+
+WORKDIR /app
+COPY pyproject.toml uv.lock ./
+COPY apps/api/pyproject.toml apps/api/pyproject.toml
+COPY packages/eval/pyproject.toml packages/eval/pyproject.toml
+COPY apps/api/src apps/api/src
+RUN apt-get update \
+    && apt-get install --no-install-recommends --yes ca-certificates git \
+    && rm -rf /var/lib/apt/lists/*
+RUN uv sync --frozen --package reclamos-api --no-dev
+ENV PATH="/app/.venv/bin:$PATH"
+CMD ["uvicorn", "reclamos_api.main:app", "--host", "0.0.0.0", "--port", "8000"]

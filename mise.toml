@@ -1,0 +1,76 @@
+[settings]
+python.uv_venv_auto = "source"
+
+[tools]
+python = "3.13.15"
+uv = "0.13.1"
+ruff = "0.16.10"
+bun = "1.4.3"
+oxlint = "1.48.0"
+oxfmt = "0.28.0"
+terraform = "1.16.5"
+tflint = "0.64.0"
+vercel = "64.2.0"
+
+[tasks.install]
+description = "Install Python and web dependencies"
+run = ["uv sync --all-packages --all-groups", "bun install --frozen-lockfile"]
+
+[tasks.lint]
+description = "Lint every application and package"
+depends = ["api:lint", "eval:lint", "web:lint", "infra:lint"]
+
+[tasks.typecheck]
+description = "Typecheck every application and package"
+depends = ["api:typecheck", "eval:typecheck", "web:typecheck"]
+
+[tasks.test]
+description = "Run every application and package test suite"
+depends = ["api:test", "eval:test", "web:test"]
+
+[tasks.build]
+description = "Build the web application and Python distributions"
+depends = ["api:build", "eval:build", "web:build"]
+
+[tasks.check]
+description = "Run the complete local quality gate"
+depends = ["lint", "typecheck", "test", "build"]
+
+[tasks."api:lint"]
+run = "uv run --package reclamos-api ruff check apps/api"
+
+[tasks."api:typecheck"]
+run = "uv run --package reclamos-api basedpyright apps/api/src apps/api/tests"
+
+[tasks."api:test"]
+run = "uv run --package reclamos-api pytest apps/api/tests -q"
+
+[tasks."api:build"]
+run = "uv build --package reclamos-api"
+
+[tasks."eval:lint"]
+run = "uv run --package reclamos-eval ruff check packages/eval"
+
+[tasks."eval:typecheck"]
+run = "uv run --package reclamos-eval basedpyright packages/eval/src packages/eval/tests"
+
+[tasks."eval:test"]
+run = "uv run --package reclamos-eval pytest packages/eval/tests -q"
+
+[tasks."eval:build"]
+run = "uv build --package reclamos-eval"
+
+[tasks."web:lint"]
+run = "bun run --cwd apps/web lint"
+
+[tasks."web:typecheck"]
+run = "bun run --cwd apps/web typecheck"
+
+[tasks."web:test"]
+run = "bun run --cwd apps/web test"
+
+[tasks."web:build"]
+run = "bun run --cwd apps/web build"
+
+[tasks."infra:lint"]
+run = ["terraform -chdir=infra fmt -check", "terraform -chdir=infra init -backend=false -input=false", "terraform -chdir=infra validate", "tflint --chdir=infra"]

@@ -1,0 +1,63 @@
+:root {
+  color: #1d2939;
+  background: #f7f5ef;
+  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+}
+
+.shell {
+  display: grid;
+  min-height: 100vh;
+  max-width: 720px;
+  align-content: center;
+  gap: 1.25rem;
+  margin: 0 auto;
+  padding: 3rem 1.5rem;
+}
+
+.eyebrow {
+  color: #7a4b2a;
+  font-size: 0.8rem;
+  letter-spacing: 0.12em;
+  margin: 0;
+}
+
+h1 {
+  max-width: 13ch;
+  font-size: clamp(2.75rem, 8vw, 5.5rem);
+  line-height: 0.98;
+  margin: 0;
+}
+
+.intro {
+  max-width: 46ch;
+  font-size: 1.15rem;
+  line-height: 1.5;
+  margin: 0;
+}
+
+button {
+  width: fit-content;
+  border: 0;
+  border-radius: 999px;
+  background: #1d2939;
+  color: #fff;
+  cursor: not-allowed;
+  font: inherit;
+  padding: 0.9rem 1.25rem;
+}
+
+.notice {
+  color: #667085;
+  font-size: 0.9rem;
+  margin: 0;
+}

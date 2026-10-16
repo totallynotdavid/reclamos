@@ -1,0 +1,31 @@
+[project]
+name = "reclamos-api"
+version = "0.1.0"
+description = "FastAPI service for Reclamos"
+requires-python = ">=3.13,<3.14"
+dependencies = [
+  "asyncpg>=0.32.0",
+  "fastapi>=0.116.0",
+  "rqueue @ git+https://github.com/totallynotdavid/rqueue.git@36dc2d9c8f53c2273fa61a8f6e3c8c2f0d98cd00",
+  "uvicorn[standard]>=0.35.0",
+]
+
+[dependency-groups]
+dev = [
+  "basedpyright>=1.39.9",
+  "httpx>=0.28.1",
+  "pytest>=9.0.0",
+  "testcontainers[postgres]>=4.13.0",
+]
+
+[build-system]
+requires = ["uv_build>=0.10.0,<0.14"]
+build-backend = "uv_build"
+
+[tool.uv.build-backend]
+module-name = "reclamos_api"
+module-root = "src"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = ["integration: uses a disposable PostgreSQL container"]
