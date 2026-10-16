@@ -71,6 +71,8 @@ resource "aws_ecs_task_definition" "worker" {
         { name = "DB_HOST", value = aws_db_instance.main.address },
         { name = "DB_NAME", value = var.db_name },
         { name = "DB_USER", value = var.db_username },
+        { name = "PDF_STORE", value = "s3" },
+        { name = "PDF_BUCKET", value = aws_s3_bucket.pdfs.bucket },
       ]
       secrets = [{ name = "DB_PASSWORD", valueFrom = "${local.db_secret}:password::" }]
       logConfiguration = {
