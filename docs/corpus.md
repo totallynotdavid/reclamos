@@ -43,8 +43,12 @@ Each step is an `rqueue` job, and each job queues the next:
    `resolutions/<id>.pdf` with its SHA-256 and size.
 3. `corpus.extract` reads the text layer of each page and runs OCR on pages that
    have none. Resolutions published as scans are the common case.
-4. `corpus.parse` reads the number, date, operator, claim type and outcome from
-   the text and the page summary.
+4. `corpus.chunk` splits the text into passages and `corpus.embed` stores a
+   vector for each. [Retrieval](retrieval.md) describes both.
+5. `corpus.parse` reads the number, date, operator, claim type and outcome from
+   the text and the page summary. It runs last because it only fills the fields
+   that filter a search: a resolution whose header the scan damaged is still
+   searchable.
 
 The `resolutions` row in `schema.sql` records which steps are finished. A job
 checks its step first, so a re-run does nothing for finished work.
@@ -89,14 +93,16 @@ Run these from `apps/api` with PostgreSQL available (see
 [operations](operations.md)):
 
 ```console
-uv run reclamos corpus crawl --since 2020-01-01
+uv run reclamos corpus crawl
 uv run reclamos corpus stats
 ```
 
-`crawl` runs the jobs in this process until the queue is empty, then prints the
-same statistics as `stats`. `stats` prints the resolutions found, downloaded,
-extracted, parsed and failed, the failures by stage and reason, and the counts
-of claim types and outcomes.
+`crawl` lists every publication date from 2003-01-01 (`--since`) to today
+(`--until`), runs the jobs in this process until the queue is empty, then prints
+the same statistics as `stats`. `stats` prints the resolutions found,
+downloaded, extracted, parsed, chunked and embedded, the failures by stage and
+reason, and the counts of claim types and outcomes. `reclamos corpus reindex`
+rebuilds the search index; see [Retrieval](retrieval.md#re-indexing).
 
 ## Configuration
 
@@ -129,5 +135,5 @@ The Docker image installs them. Extraction fails a scan with the reason
 
 The tests replay recorded gob.pe pages and PDFs from `apps/api/tests/fixtures`
 and make no network request. The corpus tests need PostgreSQL: set
-`TEST_DATABASE_URL` to a server, or run Docker so the tests start `postgres:18`.
-Each test creates and drops its own database.
+`TEST_DATABASE_URL` to a server, or run Docker so the tests start
+`pgvector/pgvector:pg18`. Each test creates and drops its own database.

@@ -32,9 +32,10 @@ worker waits for that queue schema for up to 30 seconds before exiting if the
 API has not made it ready. The worker keeps PDFs in the `pdfs` volume; the
 deployed worker keeps them in the S3 bucket.
 
-The tests need a PostgreSQL server. They start `postgres:18` with Docker, or use
-the server in `TEST_DATABASE_URL`, and skip when neither exists. Tests of OCR
-skip without `pdftoppm` and `tesseract` (see [corpus](corpus.md)).
+The tests need a PostgreSQL server with the pgvector and unaccent extensions.
+They start `pgvector/pgvector:pg18` with Docker, or use the server in
+`TEST_DATABASE_URL`, and skip when neither exists. Tests of OCR skip without
+`pdftoppm` and `tesseract` (see [corpus](corpus.md)).
 
 ## Checks
 
