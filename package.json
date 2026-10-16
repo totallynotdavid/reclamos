@@ -1,0 +1,5 @@
+{
+  "name": "reclamos-workspace",
+  "private": true,
+  "workspaces": ["apps/web"]
+}

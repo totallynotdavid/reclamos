@@ -1,0 +1,29 @@
+name: Web
+
+on:
+  push:
+    paths:
+      - "apps/web/**"
+      - "package.json"
+      - "bun.lock"
+      - "mise.toml"
+      - ".github/workflows/web.yml"
+  pull_request:
+    paths:
+      - "apps/web/**"
+      - "package.json"
+      - "bun.lock"
+      - "mise.toml"
+      - ".github/workflows/web.yml"
+
+jobs:
+  web:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: jdx/mise-action@v5.2.0
+      - run: bun install --frozen-lockfile
+      - run: mise run web:lint
+      - run: mise run web:typecheck
+      - run: mise run web:test
+      - run: mise run web:build
