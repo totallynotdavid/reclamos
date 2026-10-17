@@ -12,7 +12,7 @@ dependencies = [
   "reclamos-eval",
   "rqueue @ git+https://github.com/totallynotdavid/rqueue.git@36dc2d9c8f53c2273fa61a8f6e3c8c2f0d98cd00",
   "selectolax>=1.0.0",
-  "uvicorn[standard]>=0.35.0",
+  "uvicorn[standard]>=0.54.0",
 ]
 
 [tool.uv.sources]
