@@ -1,10 +1,10 @@
-from collections.abc import AsyncIterator
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from importlib.resources import files
 from typing import Any
 
 import asyncpg
-from rqueue.migrations import migrate
+from rqueue.migrations import migrate  # pyright: ignore[reportMissingTypeStubs]
 
 SCHEMA_SQL = files("reclamos_api").joinpath("schema.sql")
 
@@ -16,7 +16,7 @@ async def prepare_database(connection: Any, *, queue_schema: str) -> None:
 
 
 @asynccontextmanager
-async def database_pool(database_url: str, *, queue_schema: str) -> AsyncIterator[Any]:
+async def database_pool(database_url: str, *, queue_schema: str) -> AsyncGenerator[Any]:
     pool = await asyncpg.create_pool(database_url, min_size=1, max_size=5)
     try:
         async with pool.acquire() as connection:

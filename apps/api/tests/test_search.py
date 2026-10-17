@@ -5,6 +5,7 @@ from typing import Any, cast
 
 import asyncpg
 import httpx
+import httpx2
 import pytest
 from fakeembed import STALE_VECTOR, CountingPool, GatedEmbedder, HashingEmbedder
 from fastapi.testclient import TestClient
@@ -18,7 +19,7 @@ from reclamos_api.corpus.site import Fetcher, ListedResolution
 from reclamos_api.corpus.store import LocalStore
 from reclamos_api.db import database_pool
 from reclamos_api.main import create_app
-from rqueue import Queue, Worker
+from rqueue import Queue, Worker  # pyright: ignore[reportMissingTypeStubs]
 
 pytestmark = pytest.mark.integration
 
@@ -139,12 +140,13 @@ def indexed(settings: Settings, embedder: HashingEmbedder, tmp_path: Any) -> Set
 
 
 @pytest.fixture
-def client(indexed: Settings, embedder: HashingEmbedder) -> Iterator[TestClient]:
+def client(indexed: Settings, embedder: HashingEmbedder) -> Iterator[httpx2.Client]:
     with TestClient(create_app(embedder)) as test_client:
-        yield test_client
+        client: httpx2.Client = test_client
+        yield client
 
 
-def search(client: TestClient, **body: Any) -> list[dict[str, Any]]:
+def search(client: httpx2.Client, **body: Any) -> list[dict[str, Any]]:
     response = client.post("/search", json=body)
     assert response.status_code == 200, response.text
     return response.json()["results"]
@@ -210,7 +212,7 @@ def test_a_rerun_skips_finished_chunking_and_embedding(
 
 
 def test_search_returns_ranked_chunks_with_what_a_citation_needs(
-    client: TestClient, indexed: Settings
+    client: httpx2.Client, indexed: Settings
 ) -> None:
     results = search(
         client, query="cobro de cargo fijo y venta en cuotas del recibo", k=5
@@ -237,7 +239,7 @@ def test_search_returns_ranked_chunks_with_what_a_citation_needs(
 
 
 def test_the_fused_score_is_the_reciprocal_rank_sum_of_the_two_rankings(
-    client: TestClient,
+    client: httpx2.Client,
 ) -> None:
     question = "queja por falta de respuesta al reclamo"
 
@@ -260,7 +262,7 @@ def test_the_fused_score_is_the_reciprocal_rank_sum_of_the_two_rankings(
     )
 
 
-def test_each_ranker_can_be_asked_alone(client: TestClient) -> None:
+def test_each_ranker_can_be_asked_alone(client: httpx2.Client) -> None:
     question = "baja del servicio por contrato no solicitado"
 
     vector = search(client, query=question, mode="vector")
@@ -274,7 +276,9 @@ def test_each_ranker_can_be_asked_alone(client: TestClient) -> None:
     assert all(r["vector_score"] is None and r["text_score"] is not None for r in text)
 
 
-def test_full_text_search_ignores_accents_and_word_endings(client: TestClient) -> None:
+def test_full_text_search_ignores_accents_and_word_endings(
+    client: httpx2.Client,
+) -> None:
     unaccented = search(
         client, query="analisis del caso facturacion", mode="text", k=50
     )
@@ -304,7 +308,7 @@ def test_full_text_search_ignores_accents_and_word_endings(client: TestClient) -
     ],
 )
 def test_filters_keep_only_matching_resolutions_in_both_rankers(
-    client: TestClient, filters: dict[str, str], expected: set[int]
+    client: httpx2.Client, filters: dict[str, str], expected: set[int]
 ) -> None:
     for mode in ("vector", "text", "hybrid"):
         results = search(
@@ -342,15 +346,17 @@ def test_a_resolution_whose_header_cannot_be_read_is_searchable_but_not_filterab
     assert filtered == []
 
 
-def test_a_filter_nothing_matches_gives_no_results(client: TestClient) -> None:
+def test_a_filter_nothing_matches_gives_no_results(client: httpx2.Client) -> None:
     assert search(client, query="facturación", operator="VIETTEL PERU S.A.C.") == []
 
 
-def test_a_query_of_only_stop_words_gives_no_text_results(client: TestClient) -> None:
+def test_a_query_of_only_stop_words_gives_no_text_results(
+    client: httpx2.Client,
+) -> None:
     assert search(client, query="de la que el", mode="text") == []
 
 
-def test_k_limits_the_number_of_chunks(client: TestClient) -> None:
+def test_k_limits_the_number_of_chunks(client: httpx2.Client) -> None:
     assert len(search(client, query="recurso de apelación", k=3)) == 3
 
 
@@ -373,12 +379,12 @@ def test_k_limits_the_number_of_chunks(client: TestClient) -> None:
     ],
 )
 def test_invalid_input_is_rejected_before_any_search(
-    client: TestClient, body: dict[str, Any]
+    client: httpx2.Client, body: dict[str, Any]
 ) -> None:
     assert client.post("/search", json=body).status_code == 422
 
 
-def test_the_longest_allowed_query_and_k_are_accepted(client: TestClient) -> None:
+def test_the_longest_allowed_query_and_k_are_accepted(client: httpx2.Client) -> None:
     longest = ("facturación " * 50)[:500]
     assert len(longest) == 500
     assert len(search(client, query=longest, k=50)) <= 50

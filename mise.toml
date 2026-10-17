@@ -4,77 +4,124 @@ python.uv_venv_auto = "source"
 [tools]
 python = "3.13.15"
 uv = "0.13.1"
-ruff = "0.16.10"
 bun = "1.4.3"
-oxlint = "1.48.0"
-oxfmt = "0.28.0"
 terraform = "1.16.5"
 tflint = "0.64.0"
 vercel = "64.2.0"
 
 [tasks.install]
-description = "Install Python and web dependencies"
-run = ["uv sync --all-packages --all-groups", "bun install --frozen-lockfile"]
+description = "Install Python and web dependencies from the lockfiles"
+run = [
+  "uv sync --locked --all-packages --all-groups",
+  "bun install --frozen-lockfile",
+]
 
 [tasks.lint]
-description = "Lint every application and package"
-depends = ["api:lint", "eval:lint", "web:lint", "infra:lint"]
+description = "Check style, formatting and static rules without writing"
+depends = ["lint:*"]
+
+[tasks."lint:py"]
+description = "Ruff lint and format check for the Python packages"
+run = ["uv run ruff check --no-fix .", "uv run ruff format --check ."]
+
+[tasks."lint:web"]
+description = "Oxlint the web application"
+run = "bun x oxlint --deny-warnings apps/web"
+
+[tasks."lint:fmt"]
+description = "Oxfmt check of Markdown, YAML, JSON, CSS, HTML and TypeScript"
+run = "bun x oxfmt --check ."
+
+[tasks."lint:infra"]
+description = "Terraform format, validate and tflint"
+run = [
+  "terraform -chdir=infra fmt -check",
+  "terraform -chdir=infra init -backend=false -input=false",
+  "terraform -chdir=infra validate",
+  "tflint --chdir=infra",
+]
+
+[tasks.fix]
+description = "Apply safe lint fixes and format every file"
+depends = ["fix:*"]
+
+[tasks."fix:py"]
+description = "Ruff safe fixes and format"
+run = ["uv run ruff check --fix .", "uv run ruff format ."]
+
+[tasks."fix:web"]
+description = "Oxlint safe fixes for the web application"
+run = "bun x oxlint --fix apps/web"
+
+[tasks."fix:fmt"]
+description = "Oxfmt every supported file, after the lint fixes"
+depends = ["fix:web"]
+run = "bun x oxfmt ."
+
+[tasks."fix:infra"]
+description = "Terraform format"
+run = "terraform -chdir=infra fmt"
 
 [tasks.typecheck]
-description = "Typecheck every application and package"
-depends = ["api:typecheck", "eval:typecheck", "web:typecheck"]
+description = "Typecheck the Python packages and the web application"
+depends = ["typecheck:*"]
 
-[tasks.test]
-description = "Run every application and package test suite"
-depends = ["api:test", "eval:test", "web:test"]
+[tasks."typecheck:py"]
+description = "Basedpyright strict on the API and the evaluation package"
+run = "uv run basedpyright apps/api/src apps/api/tests packages/eval/src packages/eval/tests"
 
-[tasks.build]
-description = "Build the web application and Python distributions"
-depends = ["api:build", "eval:build", "web:build"]
-
-[tasks.check]
-description = "Run the complete local quality gate"
-depends = ["lint", "typecheck", "test", "build"]
-
-[tasks."api:lint"]
-run = "uv run --package reclamos-api ruff check apps/api"
-
-[tasks."api:typecheck"]
-run = "uv run --package reclamos-api basedpyright apps/api/src apps/api/tests"
-
-[tasks."api:test"]
-run = "uv run --package reclamos-api pytest apps/api/tests -q"
-
-[tasks."api:build"]
-run = "uv build --package reclamos-api"
-
-[tasks."eval:lint"]
-run = "uv run --package reclamos-eval ruff check packages/eval"
-
-[tasks."eval:typecheck"]
-run = "uv run --package reclamos-eval basedpyright packages/eval/src packages/eval/tests"
-
-[tasks."eval:test"]
-run = "uv run --package reclamos-eval pytest packages/eval/tests -q"
-
-[tasks."eval:gate"]
-description = "Fail when fused recall@5 on the fixed index fell below the baseline"
-run = "uv run --package reclamos-api reclamos gate check"
-
-[tasks."eval:build"]
-run = "uv build --package reclamos-eval"
-
-[tasks."web:lint"]
-run = "bun run --cwd apps/web lint"
-
-[tasks."web:typecheck"]
+[tasks."typecheck:web"]
+description = "TypeScript project build check for the web application"
 run = "bun run --cwd apps/web typecheck"
 
-[tasks."web:test"]
+[tasks.test]
+description = "Run the tests that need no database, network or secrets"
+depends = ["test:py", "test:web"]
+
+[tasks."test:py"]
+description = "Pytest without the integration tests"
+run = "uv run pytest -q -m 'not integration' apps/api/tests packages/eval/tests"
+
+[tasks."test:integration"]
+description = "Pytest against PostgreSQL: TEST_DATABASE_URL or a Docker daemon"
+run = "uv run pytest -q -m integration apps/api/tests packages/eval/tests"
+
+[tasks."test:gate"]
+description = "Fail when fused recall@5 on the fixed index fell below the baseline"
+run = "uv run reclamos gate check"
+
+[tasks."test:web"]
+description = "Vitest for the web application"
 run = "bun run --cwd apps/web test"
 
-[tasks."web:build"]
+[tasks.build]
+description = "Build the web application and the Python distributions"
+depends = ["build:py", "build:web"]
+
+[tasks."build:py"]
+description = "Build the API and evaluation distributions"
+run = ["uv build --package reclamos-api", "uv build --package reclamos-eval"]
+
+[tasks."build:web"]
+description = "Typecheck and bundle the web application"
 run = "bun run --cwd apps/web build"
 
-[tasks."infra:lint"]
-run = ["terraform -chdir=infra fmt -check", "terraform -chdir=infra init -backend=false -input=false", "terraform -chdir=infra validate", "tflint --chdir=infra"]
+[tasks.check]
+description = "Run the complete local quality gate without writing files"
+depends = ["lint", "typecheck", "test", "build"]
+
+[tasks."check:py"]
+description = "Every check of the Python packages"
+depends = ["lint:py", "typecheck:py", "test:py", "build:py"]
+
+[tasks."check:web"]
+description = "Every check of the web application"
+depends = ["lint:web", "typecheck:web", "test:web", "build:web"]
+
+[tasks."check:infra"]
+description = "Every check of the Terraform configuration"
+depends = ["lint:infra"]
+
+[tasks."check:fmt"]
+description = "Format check of every file oxfmt supports"
+depends = ["lint:fmt"]

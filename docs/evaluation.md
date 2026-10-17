@@ -112,11 +112,11 @@ DATABASE_URL=postgresql://postgres:postgres@localhost:5432/postgres \
 ```
 
 The role in the URL must be allowed to create databases. The command creates a
-scratch database on that server, loads
-`packages/eval/data/gate/subset.jsonl.gz` into it, searches the gate's
-questions with the stored query vectors, drops the database and compares the
-result with `packages/eval/data/gate/baseline.json`. `mise run eval:gate` runs
-it, and the `gate` job of the API workflow runs that.
+scratch database on that server, loads `packages/eval/data/gate/subset.jsonl.gz`
+into it, searches the gate's questions with the stored query vectors, drops the
+database and compares the result with `packages/eval/data/gate/baseline.json`.
+`mise run test:gate` runs it, and the `integration` job of the CI workflow runs
+that.
 
 The fixed index holds the chunks that answer the gate's questions, the chunks
 each single ranker prefers instead, and filler chunks picked by a hash, with

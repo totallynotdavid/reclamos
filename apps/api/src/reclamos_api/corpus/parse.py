@@ -42,6 +42,7 @@ _LABELS = (
 
 # A scan leaves a stray mark, a border or one or two characters before a label.
 _NOISE = r"[ \t]*(?:(?:[^\W_]{1,2}[ \t]+|[^\w\s]{1,3}[ \t]*)){0,3}"
+_DASHES = "\N{EN DASH}\N{EM DASH}"
 
 # Operators whose names scans often damage. A name that is close to one of
 # these takes the spelling here; any other name is kept as printed.
@@ -74,11 +75,11 @@ _DATE = re.compile(
     re.IGNORECASE,
 )
 _UNIT_WORDS = (
-    ("cero", "uno", "dos", "tres", "cuatro", "cinco", "seis", "siete", "ocho", "nueve")
-    + ("diez", "once", "doce", "trece", "catorce", "quince", "dieciseis")
-    + ("diecisiete", "dieciocho", "diecinueve", "veinte", "veintiuno", "veintidos")
-    + ("veintitres", "veinticuatro", "veinticinco", "veintiseis", "veintisiete")
-    + ("veintiocho", "veintinueve")
+    *("cero", "uno", "dos", "tres", "cuatro", "cinco", "seis", "siete", "ocho"),
+    *("nueve", "diez", "once", "doce", "trece", "catorce", "quince", "dieciseis"),
+    *("diecisiete", "dieciocho", "diecinueve", "veinte", "veintiuno", "veintidos"),
+    *("veintitres", "veinticuatro", "veinticinco", "veintiseis", "veintisiete"),
+    *("veintiocho", "veintinueve"),
 )
 _UNITS = {word: number for number, word in enumerate(_UNIT_WORDS)} | {"primero": 1}
 _TENS = {"treinta": 30, "cuarenta": 40, "cincuenta": 50}
@@ -278,13 +279,13 @@ def _appeal_kind(header: str) -> str | None:
 def _field(header: str, label: str) -> str | None:
     """The text after a label, up to the next label. Line breaks are kept."""
     pattern = (
-        rf"^{_NOISE}(?:{label})[ \t]*[:;>_\-–—]?(.*?)"
+        rf"^{_NOISE}(?:{label})[ \t]*[:;>_\-{_DASHES}]?(.*?)"
         rf"(?=^{_NOISE}(?:{_LABELS})\b|\Z)"
     )
     match = re.search(pattern, header, re.IGNORECASE | re.MULTILINE | re.DOTALL)
     if not match:
         return None
-    return match[1].lstrip(":;>_-–— \t").strip() or None
+    return match[1].lstrip(f":;>_-{_DASHES} \t").strip() or None
 
 
 def _operator(header: str, summary: str) -> str | None:

@@ -2,7 +2,7 @@ import asyncio
 import os
 
 import asyncpg
-from rqueue import Queue, Worker
+from rqueue import Queue, Worker  # pyright: ignore[reportMissingTypeStubs]
 
 from reclamos_api.config import Settings
 from reclamos_api.corpus.jobs import QUEUE_NAME, Pipeline

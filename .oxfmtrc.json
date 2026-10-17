@@ -1,0 +1,10 @@
+{
+  "printWidth": 80,
+  "proseWrap": "always",
+  "ignorePatterns": [
+    "bun.lock",
+    "uv.lock",
+    "apps/api/tests/fixtures/**",
+    "packages/eval/data/**"
+  ]
+}

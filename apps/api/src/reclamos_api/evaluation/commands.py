@@ -2,7 +2,7 @@
 
 import json
 import uuid
-from collections.abc import AsyncIterator
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 from pathlib import Path
@@ -58,7 +58,7 @@ async def run_eval(
 
 
 @asynccontextmanager
-async def scratch_database(server_url: str) -> AsyncIterator[str]:
+async def scratch_database(server_url: str) -> AsyncGenerator[str]:
     """A new empty database on the server, dropped on exit. Nothing already on
     the server is touched."""
     name = f"reclamos_gate_{uuid.uuid4().hex}"

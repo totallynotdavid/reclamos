@@ -17,7 +17,7 @@ from reclamos_api.corpus.jobs import QUEUE_NAME, Pipeline
 from reclamos_api.corpus.site import USER_AGENT, Fetcher, ListedResolution
 from reclamos_api.corpus.store import LocalStore
 from reclamos_api.db import database_pool
-from rqueue import Queue, Worker
+from rqueue import Queue, Worker  # pyright: ignore[reportMissingTypeStubs]
 from textpdf import text_pdf
 
 pytestmark = pytest.mark.integration

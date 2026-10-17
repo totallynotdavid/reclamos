@@ -1,0 +1,131 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  changes:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      py: ${{ steps.filter.outputs.py }}
+      web: ${{ steps.filter.outputs.web }}
+      infra: ${{ steps.filter.outputs.infra }}
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      - uses: dorny/paths-filter@v4.0.3
+        id: filter
+        with:
+          filters: |
+            shared: &shared
+              - .github/workflows/ci.yml
+              - mise.toml
+            py:
+              - *shared
+              - apps/api/**
+              - packages/eval/**
+              - pyproject.toml
+              - uv.lock
+              - docker-compose.yml
+            web:
+              - *shared
+              - apps/web/**
+              - package.json
+              - bun.lock
+              - .oxlintrc.json
+            infra:
+              - *shared
+              - infra/**
+
+  fmt:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      - uses: jdx/mise-action@v5.2.0
+      - run: mise run install
+      - run: mise run check:fmt
+
+  py:
+    needs: changes
+    if: needs.changes.outputs.py == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      - uses: jdx/mise-action@v5.2.0
+      - run: sudo apt-get update
+      - run:
+          sudo apt-get install --yes --no-install-recommends poppler-utils
+          tesseract-ocr tesseract-ocr-spa
+      - run: mise run install
+      - run: mise run check:py
+
+  web:
+    needs: changes
+    if: needs.changes.outputs.web == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      - uses: jdx/mise-action@v5.2.0
+      - run: mise run install
+      - run: mise run check:web
+
+  infra:
+    needs: changes
+    if: needs.changes.outputs.infra == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      - uses: jdx/mise-action@v5.2.0
+      - run: mise run install
+      - run: mise run check:infra
+
+  integration:
+    needs: changes
+    if: needs.changes.outputs.py == 'true'
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg18
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 3s
+          --health-timeout 3s --health-retries 20
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
+      TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      - uses: jdx/mise-action@v5.2.0
+      - run: sudo apt-get update
+      - run:
+          sudo apt-get install --yes --no-install-recommends poppler-utils
+          tesseract-ocr tesseract-ocr-spa
+      - run: mise run install
+      - run: mise run test:integration
+      - run: mise run test:gate

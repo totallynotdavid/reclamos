@@ -32,7 +32,7 @@ Build the corpus of TRASU resolutions and print what it holds with
 against a question; see [retrieval](docs/retrieval.md). `reclamos eval` scores
 that search on judged questions; see [evaluation](docs/evaluation.md).
 
-Run the same checks as CI with:
+Run the quality gate with:
 
 ```console
 mise run check

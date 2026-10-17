@@ -5,10 +5,7 @@ description = "Judged questions and retrieval metrics for Reclamos"
 requires-python = ">=3.13,<3.14"
 
 [dependency-groups]
-dev = [
-  "basedpyright>=1.39.9",
-  "pytest>=9.0.0",
-]
+dev = ["basedpyright>=1.39.9", "pytest>=9.0.0"]
 
 [build-system]
 requires = ["uv_build>=0.10.0,<0.14"]
@@ -17,6 +14,3 @@ build-backend = "uv_build"
 [tool.uv.build-backend]
 module-name = "reclamos_eval"
 module-root = "src"
-
-[tool.pytest.ini_options]
-testpaths = ["tests"]

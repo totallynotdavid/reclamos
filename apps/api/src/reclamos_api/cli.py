@@ -7,7 +7,7 @@ from zoneinfo import ZoneInfo
 
 from reclamos_eval.gate import BASELINE, SUBSET
 from reclamos_eval.questions import QUESTIONS, QuestionFileError
-from rqueue import Queue, Worker
+from rqueue import Queue, Worker  # pyright: ignore[reportMissingTypeStubs]
 
 from reclamos_api.config import Settings
 from reclamos_api.corpus import repository
