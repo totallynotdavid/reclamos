@@ -24,7 +24,7 @@ Run `bun run --cwd apps/web dev` for the Spanish placeholder web page at
 
 The repository contains the FastAPI service in `apps/api`, the React web app in
 `apps/web`, the evaluation package in `packages/eval`, and AWS Terraform in
-`infra`. The measurement package exposes the shared exact-match accuracy metric.
+`infra`.
 
 Build the corpus of TRASU resolutions and print what it holds with
 `reclamos corpus crawl` and `reclamos corpus stats`; see the
