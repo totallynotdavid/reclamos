@@ -1,8 +1,4 @@
-"""The corpus pipeline as rqueue jobs: discover, download, extract, chunk, embed,
-parse. Each job skips completed stages and queues the next one. A failed stage
-records its reason on the resolution row. Parsing remains last so damaged
-headers do not prevent a resolution from being searchable.
-"""
+"""The corpus pipeline as rqueue jobs."""
 
 import hashlib
 from collections.abc import Awaitable, Callable

@@ -1,7 +1,4 @@
-"""Split a resolution into passages without crossing its headings.
-
-Each passage records its source offsets and page range so callers can quote it.
-"""
+"""Split a resolution into passages."""
 
 import re
 import unicodedata

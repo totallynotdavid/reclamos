@@ -1,8 +1,4 @@
-"""Store the fixed CI-gate index without requiring the embedding model.
-
-The gzipped JSON Lines file contains metadata, resolution and chunk rows, and
-base64-encoded half-precision vectors for chunks and questions.
-"""
+"""The fixed index behind the CI gate."""
 
 import base64
 import gzip
