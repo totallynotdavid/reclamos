@@ -2,8 +2,11 @@ import argparse
 import asyncio
 from collections.abc import Sequence
 from datetime import date, datetime
+from pathlib import Path
 from zoneinfo import ZoneInfo
 
+from reclamos_eval.gate import BASELINE, SUBSET
+from reclamos_eval.questions import QUESTIONS, QuestionFileError
 from rqueue import Queue, Worker
 
 from reclamos_api.config import Settings
@@ -13,6 +16,8 @@ from reclamos_api.corpus.site import Fetcher
 from reclamos_api.corpus.stats import collect_stats, format_stats
 from reclamos_api.corpus.store import store_from_settings
 from reclamos_api.db import database_pool
+from reclamos_api.evaluation import commands as evaluation
+from reclamos_api.evaluation.run import DatasetError
 from reclamos_api.retrieval.embedder import Embedder, embedder_from_settings
 
 FIRST_PUBLISHED = date(2003, 1, 1)
@@ -57,6 +62,40 @@ def build_parser() -> argparse.ArgumentParser:
     )
     reindex.add_argument("--concurrency", type=int, default=4)
     actions.add_parser("stats", help="print what the corpus holds")
+
+    scoring = commands.add_parser(
+        "eval", help="score the judged questions against the corpus database"
+    )
+    scoring.add_argument("--questions", type=Path, default=QUESTIONS)
+    scoring.add_argument(
+        "--output",
+        type=Path,
+        default=evaluation.DEFAULT_OUTPUT,
+        help="where to write the results as JSON (default: %(default)s)",
+    )
+
+    gate = commands.add_parser("gate", help="the CI regression gate")
+    steps = gate.add_subparsers(dest="action", required=True)
+    for name, help_text in (
+        (
+            "check",
+            "fail when fused recall@5 on the fixed index fell below the baseline",
+        ),
+        ("baseline", "measure the fixed index and rewrite the baseline file"),
+        ("subset", "rebuild the fixed index from the corpus database"),
+    ):
+        step = steps.add_parser(name, help=help_text)
+        step.add_argument("--questions", type=Path, default=QUESTIONS)
+        step.add_argument("--subset", type=Path, default=SUBSET)
+        if name == "subset":
+            step.add_argument(
+                "--chunks",
+                type=int,
+                default=evaluation.DEFAULT_CHUNK_BUDGET,
+                help="chunks to keep, at least the answers (default: %(default)s)",
+            )
+        else:
+            step.add_argument("--baseline", type=Path, default=BASELINE)
     return parser
 
 
@@ -113,6 +152,15 @@ async def run(
     fetcher: Fetcher | None,
     embedder: Embedder | None,
 ) -> str:
+    if arguments.command == "eval":
+        return await evaluation.run_eval(
+            settings,
+            embedder or embedder_from_settings(settings),
+            questions_path=arguments.questions,
+            output=arguments.output,
+        )
+    if arguments.command == "gate":
+        return await run_gate(arguments, settings, embedder)
     if arguments.action in ("crawl", "reindex"):
         fetcher = fetcher or Fetcher.create()
         embedder = embedder or embedder_from_settings(settings)
@@ -135,6 +183,31 @@ async def run(
     return await stats(settings)
 
 
+async def run_gate(
+    arguments: argparse.Namespace, settings: Settings, embedder: Embedder | None
+) -> str:
+    """`check` and `baseline` need no model: the fixed index holds its vectors."""
+    if arguments.action == "subset":
+        return await evaluation.gate_subset(
+            settings,
+            embedder or embedder_from_settings(settings),
+            questions_path=arguments.questions,
+            subset_path=arguments.subset,
+            chunk_budget=arguments.chunks,
+        )
+    step = (
+        evaluation.gate_check
+        if arguments.action == "check"
+        else evaluation.gate_baseline
+    )
+    return await step(
+        settings,
+        questions_path=arguments.questions,
+        subset_path=arguments.subset,
+        baseline_path=arguments.baseline,
+    )
+
+
 def main(
     argv: Sequence[str] | None = None,
     *,
@@ -144,7 +217,12 @@ def main(
     """Run a `reclamos` command. `fetcher` and `embedder` replace the HTTP
     client and the embedding model."""
     arguments = build_parser().parse_args(argv)
-    print(asyncio.run(run(arguments, Settings.from_environment(), fetcher, embedder)))
+    try:
+        print(
+            asyncio.run(run(arguments, Settings.from_environment(), fetcher, embedder))
+        )
+    except (DatasetError, QuestionFileError) as error:
+        raise SystemExit(str(error)) from error
 
 
 if __name__ == "__main__":
