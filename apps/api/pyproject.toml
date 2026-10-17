@@ -36,7 +36,3 @@ build-backend = "uv_build"
 [tool.uv.build-backend]
 module-name = "reclamos_api"
 module-root = "src"
-
-[tool.pytest.ini_options]
-testpaths = ["tests"]
-markers = ["integration: uses a disposable PostgreSQL database"]
