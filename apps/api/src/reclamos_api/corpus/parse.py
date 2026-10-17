@@ -340,7 +340,6 @@ def _subject(header: str) -> str | None:
 
 
 OUTCOMES = ("infundado", "fundado", "improcedente")
-# Every value the `outcome` and `claim_type` columns can hold.
 OUTCOME_NAMES = (*OUTCOMES, "fundado_en_parte", "mixto", "sin_efecto")
 CLAIM_TYPE_NAMES = (*(name for name, _ in CLAIM_TYPES), "procedural")
 

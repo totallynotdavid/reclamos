@@ -1,13 +1,6 @@
-"""Split a resolution's text into passages along its own structure.
+"""Split a resolution into passages without crossing its headings.
 
-A resolution is a header block, then sections introduced by a heading (VISTO,
-ANTECEDENTES, ANÁLISIS DEL CASO, HA RESUELTO), each made of paragraphs, most of
-them numbered. A passage never crosses a heading, ends at a paragraph where it
-can, and repeats the end of the previous passage so a sentence cut by the size
-cap is whole in one of the two.
-
-Every passage is a slice of the stored text: `body[char_start:char_end]`. The
-offsets and the page range are what a caller needs to quote and check it.
+Each passage records its source offsets and page range so callers can quote it.
 """
 
 import re

@@ -1,14 +1,7 @@
-"""The judged question set.
+"""Read and validate the judged question set.
 
-Each line of the JSON Lines file is one question:
-
-    {"id": "q001", "query": "...", "split": "tune", "answerable": true,
-     "relevant": [6135016], "evidence": [{"resolution_id": 6135016, "quote": "..."}]}
-
-`relevant` lists every resolution that answers the question, the main one first,
-and `evidence` quotes the passage of each, verbatim from the resolution text. A
-question the corpus cannot answer has `"answerable": false`, no `relevant` and
-no `evidence`, and a `note` that says why.
+Each answerable question names every relevant resolution and quotes evidence
+for each one. Unanswerable questions carry a note instead.
 """
 
 import json
