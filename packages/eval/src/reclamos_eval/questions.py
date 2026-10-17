@@ -1,8 +1,4 @@
-"""Read and validate the judged question set.
-
-Each answerable question names every relevant resolution and quotes evidence
-for each one. Unanswerable questions carry a note instead.
-"""
+"""The judged question set."""
 
 import json
 import re
