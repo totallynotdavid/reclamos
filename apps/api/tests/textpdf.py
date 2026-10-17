@@ -25,7 +25,7 @@ def text_pdf(*pages: list[str]) -> bytes:
         )
 
     output = bytearray(b"%PDF-1.4\n")
-    offsets = []
+    offsets: list[int] = []
     for number, body in enumerate(objects, start=1):
         offsets.append(len(output))
         output += b"%d 0 obj\n" % number + body + b"\nendobj\n"

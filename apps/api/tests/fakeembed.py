@@ -11,7 +11,7 @@ import math
 import re
 import unicodedata
 from collections import Counter
-from collections.abc import AsyncIterator, Sequence
+from collections.abc import AsyncGenerator, Sequence
 from contextlib import asynccontextmanager
 from typing import Any
 
@@ -49,7 +49,7 @@ class CountingPool:
         return self._held[asyncio.current_task()]
 
     @asynccontextmanager
-    async def acquire(self) -> AsyncIterator[Any]:
+    async def acquire(self) -> AsyncGenerator[Any]:
         task = asyncio.current_task()
         async with self._pool.acquire() as connection:
             self._held[task] += 1

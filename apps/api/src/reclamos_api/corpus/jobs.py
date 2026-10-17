@@ -19,7 +19,7 @@ from reclamos_api.corpus.site import (
 )
 from reclamos_api.corpus.store import ObjectStore
 from reclamos_api.retrieval.embedder import Embedder
-from rqueue import Queue, TaskContext
+from rqueue import Queue, TaskContext  # pyright: ignore[reportMissingTypeStubs]
 
 QUEUE_NAME = "reclamos"
 DISCOVER = "corpus.discover"

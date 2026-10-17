@@ -1,5 +1,6 @@
 import asyncio
 import json
+from collections.abc import Awaitable, Callable
 from datetime import date
 from pathlib import Path
 from typing import Any
@@ -32,7 +33,7 @@ def environment(database_url: str, monkeypatch: pytest.MonkeyPatch) -> str:
     return database_url
 
 
-def run_database(url: str, work: Any) -> Any:
+def run_database(url: str, work: Callable[[Any], Awaitable[Any]]) -> Any:
     async def run() -> Any:
         async with database_pool(url, queue_schema=QUEUE_SCHEMA) as pool:
             return await work(pool)
