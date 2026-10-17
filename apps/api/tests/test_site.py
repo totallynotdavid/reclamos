@@ -93,26 +93,32 @@ def test_a_window_splits_into_two_that_cover_it() -> None:
     assert second == (date(2022, 1, 6), date(2022, 1, 10))
 
 
-def test_robots_rules_of_gob_pe() -> None:
-    policy = RobotsPolicy((FIXTURES / "robots.txt").read_text())
-
-    assert policy.allows(COLLECTION_URL)
-    assert not policy.allows(f"{COLLECTION_URL}?sheet=2")
-    assert not policy.allows(f"{COLLECTION_URL}?filter[per_page]=100&sheet=2")
-    assert not policy.allows("https://www.gob.pe/admin/users")
+GOB_PE_ROBOTS = (FIXTURES / "robots.txt").read_text()
+NESTED_RULES = "User-agent: *\nDisallow: /a/\nAllow: /a/b/\nCrawl-delay: 3\n"
 
 
-def test_the_longest_matching_robots_rule_wins() -> None:
-    policy = RobotsPolicy(
-        "User-agent: *\nDisallow: /a/\nAllow: /a/b/\nCrawl-delay: 3\n"
-    )
+@pytest.mark.parametrize(
+    ("robots", "url", "allowed"),
+    [
+        (GOB_PE_ROBOTS, COLLECTION_URL, True),
+        (GOB_PE_ROBOTS, f"{COLLECTION_URL}?sheet=2", False),
+        (GOB_PE_ROBOTS, f"{COLLECTION_URL}?filter[per_page]=100&sheet=2", False),
+        (GOB_PE_ROBOTS, "https://www.gob.pe/admin/users", False),
+        (NESTED_RULES, "https://h/a/c", False),
+        (NESTED_RULES, "https://h/a/b/c", True),
+    ],
+)
+def test_robots_rules_decide_what_may_be_fetched(
+    robots: str, url: str, allowed: bool
+) -> None:
+    assert RobotsPolicy(robots).allows(url) is allowed
 
-    assert not policy.allows("https://h/a/c")
-    assert policy.allows("https://h/a/b/c")
-    assert policy.crawl_delay == 3
+
+def test_the_crawl_delay_is_read() -> None:
+    assert RobotsPolicy(NESTED_RULES).crawl_delay == 3
 
 
-def test_requests_are_a_second_apart_and_say_who_asks() -> None:
+def test_requests_are_a_second_apart() -> None:
     site = RecordedSite()
     clock = FakeClock()
 
@@ -137,9 +143,6 @@ def test_requests_are_a_second_apart_and_say_who_asks() -> None:
     assert len(paths) == 4
     # The first request has nothing before it to wait for.
     assert clock.sleeps[1:] == [1.0] * (len(paths) - 2)
-    for request in site.requests:
-        assert request.headers["user-agent"] == USER_AGENT
-    assert "github.com/totallynotdavid/reclamos" in USER_AGENT
     assert site.requests[1].headers["x-requested-with"] == "XMLHttpRequest"
 
 

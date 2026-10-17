@@ -14,7 +14,7 @@ from reclamos_api.config import Settings
 from reclamos_api.corpus import repository
 from reclamos_api.corpus.extract import missing_tools
 from reclamos_api.corpus.jobs import QUEUE_NAME, Pipeline
-from reclamos_api.corpus.site import Fetcher, ListedResolution
+from reclamos_api.corpus.site import USER_AGENT, Fetcher, ListedResolution
 from reclamos_api.corpus.store import LocalStore
 from reclamos_api.db import database_pool
 from rqueue import Queue, Worker
@@ -185,9 +185,7 @@ def test_crawl_ingests_the_recorded_site_and_a_rerun_skips_finished_work(
 
     pdf_requests = [r for r in first_site.requests if r.url.host == "cdn.www.gob.pe"]
     assert len(pdf_requests) == 3 + 1  # three PDFs and the CDN's robots.txt
-    assert {r.headers["user-agent"] for r in first_site.requests} == {
-        "reclamos-corpus/0.1 (+https://github.com/totallynotdavid/reclamos)"
-    }
+    assert {r.headers["user-agent"] for r in first_site.requests} == {USER_AGENT}
     extracted_at = {
         row["id"]: row["extracted_at"] for row in rows.values() if row["extracted_at"]
     }

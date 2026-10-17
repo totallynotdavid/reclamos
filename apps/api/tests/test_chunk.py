@@ -134,7 +134,7 @@ def test_text_without_spaces_is_still_split_within_the_cap() -> None:
     chunks = chunk_text(text, max_chars=1000, overlap_chars=100)
 
     assert all(len(c.text) <= 1000 for c in chunks)
-    assert "".join(text[c.char_start : c.char_end] for c in chunks)
+    assert all(b.char_start <= a.char_end for a, b in itertools.pairwise(chunks))
     assert chunks[0].char_start == 0
     assert chunks[-1].char_end == 2500
 

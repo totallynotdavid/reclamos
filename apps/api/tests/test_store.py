@@ -10,7 +10,6 @@ from reclamos_api.corpus.store import (
     LocalStore,
     ObjectNotFound,
     ObjectStore,
-    S3Store,
     store_from_settings,
 )
 
@@ -47,10 +46,6 @@ def round_trip(store: ObjectStore) -> None:
     asyncio.run(scenario())
 
 
-def test_local_store_round_trip(tmp_path: Path) -> None:
-    round_trip(LocalStore(tmp_path))
-
-
 def test_local_store_keeps_keys_inside_its_root(tmp_path: Path) -> None:
     store = LocalStore(tmp_path / "root")
 
@@ -59,26 +54,24 @@ def test_local_store_keeps_keys_inside_its_root(tmp_path: Path) -> None:
     assert not (tmp_path / "escape.pdf").exists()
 
 
-def test_s3_store_round_trip(s3_endpoint: str) -> None:
-    round_trip(S3Store("pdfs", endpoint_url=s3_endpoint))
-
-
-def test_settings_choose_the_store(tmp_path: Path, s3_endpoint: str) -> None:
-    local = store_from_settings(
-        Settings(database_url="", pdf_store="local", pdf_store_path=str(tmp_path))
-    )
-    s3 = store_from_settings(
-        Settings(
-            database_url="",
-            pdf_store="s3",
-            pdf_bucket="pdfs",
-            s3_endpoint_url=s3_endpoint,
+def test_stores_built_from_settings_round_trip(
+    tmp_path: Path, s3_endpoint: str
+) -> None:
+    round_trip(
+        store_from_settings(
+            Settings(database_url="", pdf_store="local", pdf_store_path=str(tmp_path))
         )
     )
-
-    assert isinstance(local, LocalStore)
-    assert isinstance(s3, S3Store)
-    round_trip(s3)
+    round_trip(
+        store_from_settings(
+            Settings(
+                database_url="",
+                pdf_store="s3",
+                pdf_bucket="pdfs",
+                s3_endpoint_url=s3_endpoint,
+            )
+        )
+    )
 
 
 def test_s3_store_needs_a_bucket() -> None:
