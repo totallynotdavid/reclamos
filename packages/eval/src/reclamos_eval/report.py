@@ -142,20 +142,20 @@ def format_table(summary: dict[str, Any]) -> str:
     ]
     modes: dict[str, Any] = summary["modes"]
     first = next(iter(modes.values()))
-    groups = [("all", lambda m: m["all"])]
-    groups += [(f"split {s}", lambda m, s=s: m["splits"][s]) for s in first["splits"]]
-    groups += [
-        (f"claim {c}", lambda m, c=c: m["claim_types"][c]) for c in first["claim_types"]
+    groups: list[tuple[str, tuple[str, ...]]] = [
+        ("all", ("all",)),
+        *((f"split {s}", ("splits", s)) for s in first["splits"]),
+        *((f"claim {c}", ("claim_types", c)) for c in first["claim_types"]),
     ]
-    labels = [f"{name} ({pick(first)['queries']})" for name, pick in groups]
+    labels = [f"{name} ({_at(first, path)['queries']})" for name, path in groups]
     width = max(len(label) for label in [*labels, "search latency ms"]) + 2
     lines += [
         "",
         f"{'':<{width}}{'mode':<8}{'recall@5':>9}{'recall@10':>10}{'MRR':>7}{'nDCG@10':>9}",
     ]
-    for label, (_, pick) in zip(labels, groups, strict=True):
+    for label, (_, path) in zip(labels, groups, strict=True):
         for index, (mode, data) in enumerate(modes.items()):
-            row = pick(data)
+            row = _at(data, path)
             lines.append(
                 f"{label if index == 0 else '':<{width}}{mode:<8}"
                 f"{_cell(row['recall_at_5'], 9)}{_cell(row['recall_at_10'], 10)}"
@@ -168,6 +168,12 @@ def format_table(summary: dict[str, Any]) -> str:
             f"{'':<{width}}{mode:<8}{latency['p50']:>9.1f}{latency['p95']:>10.1f}"
         )
     return "\n".join(lines)
+
+
+def _at(data: Any, path: tuple[str, ...]) -> Any:
+    for key in path:
+        data = data[key]
+    return data
 
 
 def _cell(value: float | None, width: int) -> str:
