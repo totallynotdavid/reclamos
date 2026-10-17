@@ -42,3 +42,22 @@ jobs:
       - run: mise run eval:lint
       - run: mise run eval:typecheck
       - run: mise run eval:test
+
+  gate:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg18
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 3s
+          --health-timeout 3s --health-retries 20
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: jdx/mise-action@v5.2.0
+      - run: mise run eval:gate

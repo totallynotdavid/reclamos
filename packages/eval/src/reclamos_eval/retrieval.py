@@ -1,42 +1,21 @@
-"""Retrieval metrics over a judged query set.
+"""Retrieval metrics for one question.
 
-A judgment names the resolutions that answer a query. Results come back as
-chunks, so a ranking is first reduced to the distinct resolutions in order of
-their best chunk.
+Results come back as chunks, so a ranking is first reduced to the distinct
+resolutions in order of their best chunk. Relevance is binary: a resolution
+either answers the question or does not.
 """
 
-import json
-from collections.abc import Callable, Collection, Iterable, Sequence
+import math
+from collections.abc import Collection, Iterable, Sequence
 from dataclasses import dataclass
-from pathlib import Path
-
-
-@dataclass(frozen=True, slots=True)
-class Judgment:
-    id: str
-    query: str
-    relevant: frozenset[int]
 
 
 @dataclass(frozen=True, slots=True)
 class Scores:
-    recall: float
+    recall_at_5: float
+    recall_at_10: float
     mrr: float
-    queries: int
-
-
-def load_judgments(path: Path) -> list[Judgment]:
-    """Read a JSON Lines file with `id`, `query` and `relevant` (resolution ids)."""
-    judgments: list[Judgment] = []
-    for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
-        if not line.strip():
-            continue
-        record = json.loads(line)
-        relevant = frozenset(record["relevant"])
-        if not relevant:
-            raise ValueError(f"{path}:{number}: a query needs a relevant resolution")
-        judgments.append(Judgment(record["id"], record["query"], relevant))
-    return judgments
+    ndcg_at_10: float
 
 
 def distinct(ranked: Iterable[int]) -> list[int]:
@@ -60,23 +39,26 @@ def reciprocal_rank(relevant: Collection[int], ranked: Sequence[int]) -> float:
     return 0.0
 
 
-def evaluate(
-    judgments: Sequence[Judgment],
-    search: Callable[[str], Sequence[int]],
-    *,
-    k: int = 5,
-) -> Scores:
-    """Mean recall@k and MRR of `search`, which maps a query to ranked resolution ids."""
-    if not judgments:
-        raise ValueError("no judgments")
-    recalls: list[float] = []
-    reciprocals: list[float] = []
-    for judgment in judgments:
-        ranked = search(judgment.query)
-        recalls.append(recall_at_k(judgment.relevant, ranked, k))
-        reciprocals.append(reciprocal_rank(judgment.relevant, ranked))
+def ndcg_at_k(relevant: Collection[int], ranked: Sequence[int], k: int) -> float:
+    """Discounted gain of the first `k` distinct resolutions, over the best
+    possible: every relevant resolution first."""
+    if not relevant:
+        raise ValueError("relevant must not be empty")
+    gain = sum(
+        1 / math.log2(position + 1)
+        for position, resolution_id in enumerate(distinct(ranked)[:k], 1)
+        if resolution_id in relevant
+    )
+    best = sum(
+        1 / math.log2(position + 1) for position in range(1, min(k, len(relevant)) + 1)
+    )
+    return gain / best
+
+
+def score(relevant: Collection[int], ranked: Sequence[int]) -> Scores:
     return Scores(
-        recall=sum(recalls) / len(recalls),
-        mrr=sum(reciprocals) / len(reciprocals),
-        queries=len(judgments),
+        recall_at_5=recall_at_k(relevant, ranked, 5),
+        recall_at_10=recall_at_k(relevant, ranked, 10),
+        mrr=reciprocal_rank(relevant, ranked),
+        ndcg_at_10=ndcg_at_k(relevant, ranked, 10),
     )

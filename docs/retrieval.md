@@ -134,13 +134,5 @@ results, or none, until the re-index has finished.
 
 ## Evaluation
 
-`packages/eval/data/queries.jsonl` holds Spanish questions, each naming the
-resolution ids that answer it. With the API running:
-
-```console
-uv run --package reclamos-eval python -m reclamos_eval --api http://localhost:8000
-```
-
-prints recall@5 and MRR for `vector`, `text` and `hybrid`. Recall is the share
-of a question's resolutions found among the first five distinct resolutions, and
-MRR is the mean of 1 / rank of the first right one.
+[Evaluation](evaluation.md) scores the three modes on judged questions and gates
+CI on fused recall@5.

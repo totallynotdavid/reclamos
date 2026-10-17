@@ -5,6 +5,7 @@ COPY pyproject.toml uv.lock ./
 COPY apps/api/pyproject.toml apps/api/pyproject.toml
 COPY packages/eval/pyproject.toml packages/eval/pyproject.toml
 COPY apps/api/src apps/api/src
+COPY packages/eval/src packages/eval/src
 RUN apt-get update \
     && apt-get install --no-install-recommends --yes \
         ca-certificates git poppler-utils tesseract-ocr tesseract-ocr-spa \

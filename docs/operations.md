@@ -45,6 +45,11 @@ format, initialization without the remote backend, validation, and tflint.
 Workflow path filters keep API, web, and infrastructure changes from running
 unrelated jobs.
 
+The API workflow also runs the retrieval gate (`mise run eval:gate`) against a
+`pgvector/pgvector:pg18` service. It fails when fused recall@5 on the fixed
+index drops more than 2 points below the committed baseline; see
+[evaluation](evaluation.md#gate).
+
 ## Web deploy
 
 The web app is configured for Vercel in `apps/web`. Link the project from that

@@ -37,11 +37,15 @@ indexes and fusion.
 static client. `apps/web/vercel.json` owns the Vercel change filter for this
 workspace.
 
-`packages/eval/src/reclamos_eval/metrics.py` owns offline exact-match metrics,
-and `retrieval.py` scores a ranking of resolutions against a judged query set
-(recall and MRR). `python -m reclamos_eval --api URL` runs that set against a
-live `POST /search`. The package has no runtime dependency on the API or web
-app, so evaluation can run in a clean Python environment.
+`packages/eval/src/reclamos_eval/metrics.py` owns offline exact-match metrics.
+`retrieval.py` scores a ranking of resolutions (recall, MRR and nDCG),
+`questions.py` reads the judged question set, `report.py` summarizes results
+into the table and the JSON, and `gate.py` holds the regression gate's baseline
+rule. The package has no runtime dependency on the API or web app, so it can
+run in a clean Python environment. `apps/api/src/reclamos_api/evaluation/` runs
+the questions against a database through the same search code as `POST /search`
+and builds the gate's fixed index. [Evaluation](evaluation.md) describes the
+commands.
 
 `infra/` defines the AWS deployment: an HTTPS application load balancer, ECS
 Fargate task definitions and services for the API and worker, PostgreSQL RDS, an

@@ -57,6 +57,10 @@ run = "uv run --package reclamos-eval basedpyright packages/eval/src packages/ev
 [tasks."eval:test"]
 run = "uv run --package reclamos-eval pytest packages/eval/tests -q"
 
+[tasks."eval:gate"]
+description = "Fail when fused recall@5 on the fixed index fell below the baseline"
+run = "uv run --package reclamos-api reclamos gate check"
+
 [tasks."eval:build"]
 run = "uv build --package reclamos-eval"
 
