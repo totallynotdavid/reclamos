@@ -1,12 +1,4 @@
-"""The corpus pipeline as rqueue jobs: discover, download, extract, chunk, embed,
-parse.
-
-A resolution row says which stage is next (`repository.next_stage`). Each job
-checks its stage first, so a re-run skips finished work, and enqueues the next
-stage when it finishes. A stage that cannot finish writes its reason on the row.
-Parse comes last because it only fills the fields that filter a search: a
-resolution whose header the scan damaged is still searchable.
-"""
+"""The corpus pipeline as rqueue jobs."""
 
 import hashlib
 from collections.abc import Awaitable, Callable

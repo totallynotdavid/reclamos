@@ -3,6 +3,7 @@ import math
 from pathlib import Path
 
 import pytest
+from fastembed import TextEmbedding
 from reclamos_api.config import Settings
 from reclamos_api.retrieval.embedder import DIMENSION, FastEmbedder
 
@@ -23,10 +24,15 @@ def cosine(a: list[float], b: list[float]) -> float:
 
 def cached_embedder() -> FastEmbedder | None:
     settings = Settings.from_environment()
-    embedder = FastEmbedder(
-        settings.embedding_model, cache_path=Path(settings.embedding_cache_path)
+    cache = Path(settings.embedding_cache_path)
+    repository = next(
+        entry["sources"]["hf"]
+        for entry in TextEmbedding.list_supported_models()
+        if entry["model"] == settings.embedding_model
     )
-    return embedder if embedder.is_cached() else None
+    if not (cache / f"models--{repository.replace('/', '--')}").is_dir():
+        return None
+    return FastEmbedder(settings.embedding_model, cache_path=cache)
 
 
 embedder = cached_embedder()

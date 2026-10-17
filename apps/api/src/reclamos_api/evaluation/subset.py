@@ -1,11 +1,4 @@
-"""The fixed index behind the CI gate.
-
-A subset is some resolutions, some of their chunks with the vectors the model
-made for them, and the vectors of the questions the gate asks. Loading it into
-an empty database gives an index to search without downloading the model. It is
-stored as gzipped JSON Lines: one `meta` line, then `resolution`, `chunk` and
-`query` lines. Vectors are half-precision floats in base64.
-"""
+"""The fixed index behind the CI gate."""
 
 import base64
 import gzip

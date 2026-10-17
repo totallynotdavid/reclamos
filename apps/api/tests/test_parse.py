@@ -116,43 +116,20 @@ def test_normalizes_the_outcome(outcome: str, expected: str) -> None:
 
 
 @pytest.mark.parametrize(
-    "operator",
-    [
-        "ÓNICA DEL PERÚ S.A.A.",
-        "TELEFONICA DEL PERU S.A.A. 33% E",
-        "TELEFÓNICA DEL PERÚ SAA.",
-    ],
-)
-def test_repairs_a_damaged_operator_name(operator: str) -> None:
-    assert parse_resolution(resolution(operator=operator)).operator == (
-        "TELEFONICA DEL PERU S.A.A."
-    )
-
-
-@pytest.mark.parametrize(
     ("operator", "expected"),
     [
+        ("ÓNICA DEL PERÚ S.A.A.", "TELEFONICA DEL PERU S.A.A."),
+        ("TELEFONICA DEL PERU S.A.A. 33% E", "TELEFONICA DEL PERU S.A.A."),
+        ("TELEFÓNICA DEL PERÚ SAA.", "TELEFONICA DEL PERU S.A.A."),
         ("ENTELPERUSA. e E E", "ENTEL PERU S.A."),
         ("WOWTELSA.C. SS PS", "WOW TEL S.A.C."),
         ("AMÉRICA MÓVIL PERÚ S.A.C. 5% 55", "AMERICA MOVIL PERU S.A.C."),
+        ("WI-NET TELECOM S.A.C.", "WIN NET - TELECOM S.A.C."),
+        ("Nueva Red Móvil S.A.C.", "NUEVA RED MOVIL S.A.C."),
     ],
 )
-def test_reads_a_known_operator_through_scan_noise(
-    operator: str, expected: str
-) -> None:
+def test_reads_the_operator_through_scan_noise(operator: str, expected: str) -> None:
     assert parse_resolution(resolution(operator=operator)).operator == expected
-
-
-def test_one_operator_misread_hyphenated_keeps_one_spelling() -> None:
-    parsed = parse_resolution(resolution(operator="WI-NET TELECOM S.A.C."))
-
-    assert parsed.operator == "WIN NET - TELECOM S.A.C."
-
-
-def test_keeps_an_operator_it_does_not_know() -> None:
-    parsed = parse_resolution(resolution(operator="Nueva Red Móvil S.A.C."))
-
-    assert parsed.operator == "NUEVA RED MOVIL S.A.C."
 
 
 def test_an_unreadable_operator_fails_instead_of_guessing() -> None:
@@ -310,14 +287,13 @@ def test_reads_a_complaint_whose_scan_put_the_values_after_the_labels() -> None:
         ("Lima, 29 de diciembre det 2017", date(2017, 12, 29)),
         ("Lima, 26 de junio dal 2018 Ñ", date(2018, 6, 26)),
         ("Lima. 25 de marzo de 2014", date(2014, 3, 25)),
+        ("Lima, 31 de febrero de 2020", None),
     ],
 )
-def test_reads_a_date_spelled_in_words_or_misread(line: str, expected: date) -> None:
+def test_reads_a_date_spelled_in_words_or_misread(
+    line: str, expected: date | None
+) -> None:
     assert parse_resolution(f"RECURSO DE APELACION\n{line}\n").resolved_on == expected
-
-
-def test_a_date_that_does_not_exist_is_not_read() -> None:
-    assert parse_resolution("Lima, 31 de febrero de 2020\n").resolved_on is None
 
 
 def test_the_page_summary_fills_what_the_scan_lost() -> None:

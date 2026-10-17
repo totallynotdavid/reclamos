@@ -60,19 +60,7 @@ class FastEmbedder:
         self._loaded: Any = None
         self._lock = asyncio.Lock()
 
-    def is_cached(self) -> bool:
-        """Whether the model files are on disk, so loading needs no download."""
-        from fastembed import TextEmbedding
-
-        repository = next(
-            entry["sources"]["hf"]
-            for entry in TextEmbedding.list_supported_models()
-            if entry["model"] == self.model
-        )
-        return (self._cache_path / f"models--{repository.replace('/', '--')}").is_dir()
-
     def load(self) -> Any:
-        """Load the model, downloading it into the cache first when it is absent."""
         from fastembed import TextEmbedding
 
         return TextEmbedding(model_name=self.model, cache_dir=str(self._cache_path))

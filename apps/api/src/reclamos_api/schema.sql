@@ -15,10 +15,6 @@ BEGIN
 END
 $$;
 
--- Each row represents a TRASU resolution published on gob.pe. The columns follow the
--- pipeline: discovery, download, extraction, parse, chunking, embedding. A stage that cannot finish
--- records failure_stage, failure_reason and failure_detail instead of leaving
--- the row without an explanation. A later success clears them.
 CREATE TABLE IF NOT EXISTS resolutions (
     id bigint PRIMARY KEY,
     page_url text NOT NULL,
@@ -93,9 +89,6 @@ CREATE TABLE IF NOT EXISTS chunks (
     CHECK (page_start <= page_end)
 );
 
--- The model that made the vectors in `chunks`: one row, written by the first
--- embedding stored and by `reclamos corpus reindex embeddings`. A job that
--- embedded with another model stores nothing.
 CREATE TABLE IF NOT EXISTS embedding_model (
     only_row boolean PRIMARY KEY DEFAULT true CHECK (only_row),
     model text NOT NULL

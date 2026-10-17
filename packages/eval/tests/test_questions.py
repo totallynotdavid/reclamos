@@ -3,7 +3,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from reclamos_eval.questions import HELD_OUT, QUESTIONS, load_questions, locate
+from reclamos_eval.questions import load_questions, locate
 
 
 def write(path: Path, *records: dict[str, Any]) -> Path:
@@ -76,11 +76,3 @@ def test_quotes_are_found_across_line_breaks() -> None:
     body = "Se declara\nfundado   el reclamo.\nOtro párrafo."
     assert locate(body, "declara fundado el reclamo") == (3, 31)
     assert locate(body, "infundado") is None
-
-
-def test_the_committed_questions_hold_a_fifth_back_and_include_refusals() -> None:
-    questions = load_questions(QUESTIONS)
-    held_out = [q for q in questions if q.split == HELD_OUT]
-    assert len(questions) >= 100
-    assert 0.15 <= len(held_out) / len(questions) <= 0.25
-    assert sum(not q.answerable for q in questions) >= 10

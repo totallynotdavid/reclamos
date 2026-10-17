@@ -188,7 +188,7 @@ def gate_main(argv: list[str]) -> None:
     cli.main(["gate", *argv])
 
 
-def test_gate_passes_at_the_committed_baseline(
+def test_gate_passes_at_the_committed_baseline_and_leaves_the_database_empty(
     environment: str, capsys: pytest.CaptureFixture[str]
 ) -> None:
     gate_main(["check"])
@@ -196,6 +196,14 @@ def test_gate_passes_at_the_committed_baseline(
     out = capsys.readouterr().out
     assert out.splitlines()[-1].startswith("ok: fused recall@5 ")
     assert f"baseline {read_baseline().recall_at_5:.4f}" in out
+
+    async def tables(pool: Any) -> list[str]:
+        rows = await pool.fetch(
+            "SELECT count(*) FROM resolutions UNION ALL SELECT count(*) FROM chunks"
+        )
+        return [row[0] for row in rows]
+
+    assert run_database(environment, tables) == [0, 0]
 
 
 def test_gate_fails_when_recall_falls_more_than_two_points(
@@ -233,18 +241,6 @@ def test_the_baseline_command_rewrites_only_the_file_it_is_given(
         read_subset(SUBSET).questions
     )
     assert BASELINE.read_text() == committed
-
-
-def test_the_gate_leaves_the_database_it_was_given_untouched(environment: str) -> None:
-    gate_main(["check"])
-
-    async def tables(pool: Any) -> list[str]:
-        rows = await pool.fetch(
-            "SELECT count(*) FROM resolutions UNION ALL SELECT count(*) FROM chunks"
-        )
-        return [row[0] for row in rows]
-
-    assert run_database(environment, tables) == [0, 0]
 
 
 def test_gate_asks_the_questions_the_subset_names(

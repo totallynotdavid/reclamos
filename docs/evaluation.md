@@ -149,86 +149,10 @@ uv run reclamos gate baseline
 `--chunks N` sets how many chunks to keep (default 800). The answer chunks
 always stay, so the index can be larger. Commit both files.
 
-## Results
-
-Run on 2026-10-17 (UTC) at commit `00acc6f` plus the evaluation code of this
-change, with `intfloat/multilingual-e5-large` on a 4-core CPU. The database held
-290 resolutions, of which 289 have text and are indexed, in 4419 chunks. The
-questions are 116 answerable and 12 that the corpus cannot answer.
-
-```text
-128 questions: 116 answerable (103 tune, 25 held_out), 12 unanswerable (not scored)
-
-                                mode     recall@5 recall@10    MRR  nDCG@10
-all (116)                       vector      0.647     0.855  0.560    0.604
-                                text        0.569     0.695  0.497    0.510
-                                hybrid      0.727     0.855  0.628    0.661
-split tune (93)                 vector      0.624     0.873  0.548    0.600
-                                text        0.538     0.679  0.489    0.496
-                                hybrid      0.735     0.857  0.619    0.653
-split held_out (23)             vector      0.739     0.783  0.610    0.618
-                                text        0.696     0.761  0.527    0.570
-                                hybrid      0.696     0.848  0.666    0.694
-claim billing (63)              vector      0.656     0.831  0.552    0.596
-                                text        0.579     0.656  0.447    0.468
-                                hybrid      0.735     0.862  0.611    0.657
-claim contract_terms (6)        vector      0.806     0.861  0.833    0.747
-                                text        0.778     1.000  0.778    0.786
-                                hybrid      0.806     0.889  0.833    0.760
-claim equipment (2)             vector      0.500     1.000  0.562    0.658
-                                text        0.000     0.000  0.073    0.000
-                                hybrid      1.000     1.000  0.500    0.631
-claim porting (2)               vector      0.583     1.000  0.600    0.677
-                                text        0.333     0.333  0.516    0.336
-                                hybrid      0.333     0.583  0.562    0.449
-claim procedural (15)           vector      0.656     0.822  0.574    0.609
-                                text        0.589     0.722  0.613    0.592
-                                hybrid      0.656     0.878  0.602    0.648
-claim service_cut (15)          vector      0.589     0.911  0.464    0.548
-                                text        0.567     0.911  0.537    0.603
-                                hybrid      0.911     0.911  0.750    0.765
-claim service_quality (9)       vector      0.611     0.963  0.548    0.628
-                                text        0.648     0.741  0.583    0.583
-                                hybrid      0.667     0.889  0.633    0.684
-claim unrequested_contract (4)  vector      0.625     0.750  0.599    0.588
-                                text        0.250     0.375  0.278    0.296
-                                hybrid      0.250     0.375  0.315    0.298
-
-search latency ms               mode          p50       p95
-                                vector      318.9     679.1
-                                text         73.9     129.0
-                                hybrid      395.1     796.6
-```
-
-Fused search beats both single rankers on all answerable questions at recall@5
-(0.727 against 0.647 for vector and 0.569 for text), MRR and nDCG@10. At
-recall@10 it ties vector (0.855) and trails it on the tune split (0.857 against
-0.873).
-
-**Fused does not beat both single rankers on the held-out split.** At recall@5
-it ties text (0.696) and trails vector (0.739). It leads on recall@10 (0.848
-against 0.783 and 0.761), MRR (0.666 against 0.610 and 0.527) and nDCG@10 (0.694
-against 0.618 and 0.570). The split has 23 questions, so the recall@5 gap is one
-question. Where fused loses at recall@5:
-
-- `q054` asks how a company proves a subscriber accepted premium-number calls.
-  Vector ranks the right resolution 4th and text does not return it. Fused ranks
-  it 9th, behind four resolutions that both rankers return and four that only
-  one does.
-- `q104` asks about a Speedy rent charged during outages. Vector ranks the right
-  resolution 4th and text 2nd. Fused ranks it 6th, behind three resolutions that
-  both rankers return and two that vector ranks 1st and 2nd.
-- `q062` has two right resolutions. Text returns both in its first five and
-  fused returns one.
-
-Fused wins `q016`, where vector ranks the right resolution 11th and text 2nd.
-Reciprocal rank fusion favors resolutions that both rankers return, so a
-resolution that one ranker puts near the top can fall below several that both
-return at lower ranks.
-
-By claim type, fused trails vector at recall@5 on `porting` (2 questions) and
-`unrequested_contract` (4 questions), where text finds little; both groups are
-too small to read more into. Nothing was changed in response to these numbers.
-
-Latency is the median and 95th percentile of one search on a CPU, where
-embedding the question takes most of the time; `text` needs no embedding.
+The subset is gzipped JSON Lines: one `meta` line with the model name and the
+ids of the questions the gate asks, then `resolution`, `chunk` and `query`
+lines. A `chunk` line holds the stored columns of a passage and its vector. A
+`query` line holds the text of a question and its vector, so the gate searches
+without loading the model. A vector is little-endian half-precision floats in
+base64. The gzip header carries no timestamp, so the file does not change when
+its content does not.
