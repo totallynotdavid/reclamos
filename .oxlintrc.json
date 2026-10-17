@@ -1,0 +1,11 @@
+{
+  "categories": {
+    "correctness": "error",
+    "suspicious": "error",
+    "perf": "error"
+  },
+  "plugins": ["typescript", "react", "vitest"],
+  "rules": {
+    "react/react-in-jsx-scope": "off"
+  }
+}

@@ -1,5 +1,11 @@
 {
   "name": "reclamos-workspace",
   "private": true,
-  "workspaces": ["apps/web"]
+  "workspaces": [
+    "apps/web"
+  ],
+  "devDependencies": {
+    "oxfmt": "^0.73.0",
+    "oxlint": "^1.88.0"
+  }
 }
