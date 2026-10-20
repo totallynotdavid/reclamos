@@ -1,23 +1,55 @@
 version: 2
 updates:
   - package-ecosystem: bun
-    directory: "/"
+    directories:
+      - /
     schedule:
       interval: weekly
-    open-pull-requests-limit: 10
-    ignore:
-      - dependency-name: "*"
-        update-types: ["version-update:semver-major"]
+    cooldown:
+      default-days: 7
+    groups:
+      minor-and-patch:
+        update-types:
+          - minor
+          - patch
+
   - package-ecosystem: uv
-    directory: "/"
+    directories:
+      - /
     schedule:
       interval: weekly
-    open-pull-requests-limit: 10
-    ignore:
-      - dependency-name: "*"
-        update-types: ["version-update:semver-major"]
+    cooldown:
+      default-days: 7
+    groups:
+      minor-and-patch:
+        update-types:
+          - minor
+          - patch
+
+  - package-ecosystem: docker
+    directories:
+      - /apps/api
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    groups:
+      all:
+        update-types:
+          - major
+          - minor
+          - patch
+
   - package-ecosystem: github-actions
-    directory: "/"
+    directories:
+      - /
     schedule:
       interval: weekly
-    open-pull-requests-limit: 10
+    cooldown:
+      default-days: 7
+    groups:
+      all:
+        update-types:
+          - major
+          - minor
+          - patch
