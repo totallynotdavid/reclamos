@@ -138,15 +138,15 @@ wheels = [
 
 [[package]]
 name = "boto3-stubs-lite"
-version = "1.43.114"
+version = "1.43.115"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "botocore-stubs" },
     { name = "types-s3transfer" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/4d/9e/c66372fec76e3dd59886bb31b6fce0998ca5ff0471de7e62e62b408fd093/boto3_stubs_lite-1.43.114.tar.gz", hash = "sha256:ff056aa6ab5c7cacf7198df665429c3d2e2ca9081905a2ef0b27c78c953e7143", size = 75984, upload-time = "2026-10-14T19:39:49.159Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/23/78/b82f8e7ac1208275fd971944e21a4a238bf83b38b6b3927a868022e76960/boto3_stubs_lite-1.43.115.tar.gz", hash = "sha256:0fe23a84a3d437edd4d69d2acac70a96aff58616bf6b9360a95cbb7b3c2c4509", size = 75944, upload-time = "2026-10-19T20:43:53.388Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/36/a7/676acd9105dbfa6cd9343e0eca5d774822a1661016bed2026ef366e38f6b/boto3_stubs_lite-1.43.114-py3-none-any.whl", hash = "sha256:858d23ff565227109878899235c335526e928ea9e80009355e1e0aa39fd8a0a3", size = 43763, upload-time = "2026-10-14T19:39:44.591Z" },
+    { url = "https://files.pythonhosted.org/packages/29/f8/8353527b5b89eee3266ccf2956dc6112de519414ccc6b3699366f34a1df5/boto3_stubs_lite-1.43.115-py3-none-any.whl", hash = "sha256:444d79d0a5d0573fa0909a52777cf789916b6823215a0072e0364c7ed756f8eb", size = 43763, upload-time = "2026-10-19T20:43:50.259Z" },
 ]
 
 [package.optional-dependencies]
@@ -499,15 +499,15 @@ wheels = [
 
 [[package]]
 name = "httpcore2"
-version = "2.13.1"
+version = "2.15.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "h11" },
     { name = "truststore" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/cb/f3/1db7aa2bc2524062192bb0e0323969492d1883152a232fe36eea65f4e35c/httpcore2-2.13.1.tar.gz", hash = "sha256:e0aa977abe17e69a3b820a24542a6fa88702676d83880b8d194dcd18408e5103", size = 68071, upload-time = "2026-09-23T07:47:22.372Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/c2/a9/11bc39967bb9dfaab0981ab4d49f519818acbee662a7e76d06813319c838/httpcore2-2.15.1.tar.gz", hash = "sha256:a94b6b3e6260e1a3f035915408d3dcd7dc8e844c2b544b642e227cf98a747af0", size = 69859, upload-time = "2026-10-19T20:14:23.824Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/09/ba/a4568248771ce81957bfb7cc600264a40fbcda092391ee1c415c50be4bea/httpcore2-2.13.1-py3-none-any.whl", hash = "sha256:e1e05d4f25f7d7d496bfb96748f6f4b67657b03da069b3a68c36069f3db73d0a", size = 83423, upload-time = "2026-09-23T07:47:19.365Z" },
+    { url = "https://files.pythonhosted.org/packages/0d/9b/e2b556e26fbc67716ab1dfc18832eb6fe196d88363f7094cb1da3d7c0d3e/httpcore2-2.15.1-py3-none-any.whl", hash = "sha256:730f603058c260a3288378217b464713350c23e3b8fe8bba753701054032d98a", size = 85055, upload-time = "2026-10-19T20:14:21.363Z" },
 ]
 
 [[package]]
@@ -548,7 +548,7 @@ wheels = [
 
 [[package]]
 name = "httpx2"
-version = "2.13.1"
+version = "2.15.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "anyio", marker = "sys_platform != 'emscripten'" },
@@ -557,9 +557,9 @@ dependencies = [
     { name = "idna" },
     { name = "truststore", marker = "sys_platform != 'emscripten'" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/d5/44/474bef2a0e9d90f1715d32cb98b0738695ca17ba324095fb2497ed7fbd59/httpx2-2.13.1.tar.gz", hash = "sha256:e48744a19e3af5ee48313d0ce5fe941d5422fae5705ea922a4aabf94d7800dfa", size = 100405, upload-time = "2026-09-23T07:47:23.052Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/7f/85/07978f4afd168d6b408fa75c1dc13e3010653a81e182aa1b6d89ab94d9c6/httpx2-2.15.1.tar.gz", hash = "sha256:ff75485308fbe441e75b1218546e4e78d884df41e1a9741c1f79335ed8fcfef7", size = 101673, upload-time = "2026-10-19T20:14:24.587Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/d8/9c/6fe8931fd9f381042a9e4c7d5a7b4cbf7016b252bec0c99a49fce42c3326/httpx2-2.13.1-py3-none-any.whl", hash = "sha256:6dff50fabc270ee5fd25d845d0b078ed20564579744d6d962850975996d2f9a4", size = 95597, upload-time = "2026-09-23T07:47:20.995Z" },
+    { url = "https://files.pythonhosted.org/packages/7a/bf/56068f774620330c8330e4b4915fae889a5b2d4b52667b3b7c8f66c4a9ad/httpx2-2.15.1-py3-none-any.whl", hash = "sha256:75841cd83d16b417f7d6da8f2089ce8120806efdbf96af37d46c5129c49015be", size = 96411, upload-time = "2026-10-19T20:14:22.789Z" },
 ]
 
 [[package]]
@@ -1300,8 +1300,8 @@ dev = [
 dev = [
     { name = "asyncpg-stubs", specifier = ">=0.32.0" },
     { name = "basedpyright", specifier = ">=1.39.9" },
-    { name = "boto3-stubs-lite", extras = ["s3"], specifier = ">=1.43.114" },
-    { name = "httpx2", specifier = ">=2.13.1" },
+    { name = "boto3-stubs-lite", extras = ["s3"], specifier = ">=1.43.115" },
+    { name = "httpx2", specifier = ">=2.15.1" },
     { name = "pytest", specifier = ">=9.0.0" },
     { name = "ruff", specifier = ">=0.16.10" },
 ]
