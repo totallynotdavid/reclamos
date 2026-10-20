@@ -5,13 +5,13 @@ description = "FastAPI service for Reclamos"
 requires-python = ">=3.13,<3.14"
 dependencies = [
   "asyncpg>=0.32.0",
-  "boto3>=1.43.114",
-  "fastapi>=0.116.0",
+  "boto3>=1.43.115",
+  "fastapi>=0.155.0",
   "fastembed>=0.9.0",
   "httpx>=0.28.1",
   "reclamos-eval",
   "rqueue @ git+https://github.com/totallynotdavid/rqueue.git@36dc2d9c8f53c2273fa61a8f6e3c8c2f0d98cd00",
-  "selectolax>=1.0.0",
+  "selectolax>=1.0.1",
   "uvicorn[standard]>=0.35.0",
 ]
 
