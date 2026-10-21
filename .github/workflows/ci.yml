@@ -20,8 +20,6 @@ jobs:
       pull-requests: read
     outputs:
       py: ${{ steps.filter.outputs.py }}
-      web: ${{ steps.filter.outputs.web }}
-      infra: ${{ steps.filter.outputs.infra }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -30,39 +28,16 @@ jobs:
         id: filter
         with:
           filters: |
-            shared: &shared
+            py:
               - .github/workflows/ci.yml
               - mise.toml
-            py:
-              - *shared
               - apps/api/**
               - packages/eval/**
               - pyproject.toml
               - uv.lock
               - docker-compose.yml
-            web:
-              - *shared
-              - apps/web/**
-              - package.json
-              - bun.lock
-              - .oxlintrc.json
-            infra:
-              - *shared
-              - infra/**
 
-  fmt:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - uses: jdx/mise-action@fc42bcc7ddbf51124c30f95a877a0c5168a3bfde # v5.2.1
-      - run: mise run install
-      - run: mise run check:fmt
-
-  py:
-    needs: changes
-    if: needs.changes.outputs.py == 'true'
+  check:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -74,31 +49,7 @@ jobs:
           sudo apt-get install --yes --no-install-recommends poppler-utils
           tesseract-ocr tesseract-ocr-spa
       - run: mise run install
-      - run: mise run check:py
-
-  web:
-    needs: changes
-    if: needs.changes.outputs.web == 'true'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - uses: jdx/mise-action@fc42bcc7ddbf51124c30f95a877a0c5168a3bfde # v5.2.1
-      - run: mise run install
-      - run: mise run check:web
-
-  infra:
-    needs: changes
-    if: needs.changes.outputs.infra == 'true'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - uses: jdx/mise-action@fc42bcc7ddbf51124c30f95a877a0c5168a3bfde # v5.2.1
-      - run: mise run install
-      - run: mise run check:infra
+      - run: mise run check
 
   integration:
     needs: changes
