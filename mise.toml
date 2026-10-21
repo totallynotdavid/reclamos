@@ -72,7 +72,8 @@ run = "uv run basedpyright apps/api/src apps/api/tests packages/eval/src package
 
 [tasks."typecheck:web"]
 description = "TypeScript project build check for the web application"
-run = "bun run --cwd apps/web typecheck"
+dir = "apps/web"
+run = "bun x tsc -b --pretty false"
 
 [tasks.test]
 description = "Run the tests that need no database, network or secrets"
@@ -92,7 +93,8 @@ run = "uv run reclamos gate check"
 
 [tasks."test:web"]
 description = "Vitest for the web application"
-run = "bun run --cwd apps/web test"
+dir = "apps/web"
+run = "bun x vitest run"
 
 [tasks.build]
 description = "Build the web application and the Python distributions"
@@ -104,24 +106,9 @@ run = ["uv build --package reclamos-api", "uv build --package reclamos-eval"]
 
 [tasks."build:web"]
 description = "Typecheck and bundle the web application"
-run = "bun run --cwd apps/web build"
+dir = "apps/web"
+run = ["bun x tsc -b", "bun x vite build"]
 
 [tasks.check]
 description = "Run the complete local quality gate without writing files"
 depends = ["lint", "typecheck", "test", "build"]
-
-[tasks."check:py"]
-description = "Every check of the Python packages"
-depends = ["lint:py", "typecheck:py", "test:py", "build:py"]
-
-[tasks."check:web"]
-description = "Every check of the web application"
-depends = ["lint:web", "typecheck:web", "test:web", "build:web"]
-
-[tasks."check:infra"]
-description = "Every check of the Terraform configuration"
-depends = ["lint:infra"]
-
-[tasks."check:fmt"]
-description = "Format check of every file oxfmt supports"
-depends = ["lint:fmt"]
