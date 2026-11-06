@@ -5,7 +5,7 @@ description = "FastAPI service for Reclamos"
 requires-python = ">=3.13,<3.14"
 dependencies = [
   "asyncpg>=0.32.0",
-  "boto3>=1.43.120",
+  "boto3>=1.43.122",
   "fastapi>=0.162.0",
   "fastembed>=0.9.1",
   "httpx>=0.28.1",
