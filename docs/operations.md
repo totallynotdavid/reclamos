@@ -67,13 +67,15 @@ on the fixed index drops more than 2 points below the committed baseline; see
 
 ## Web deploy
 
-The web app is configured for Vercel in `apps/web`. Link the project from that
-directory with the already authenticated Vercel CLI:
+The web app is the Vercel project `web`, which deploys each push to `master`
+that touches `apps/web`. The Vercel CLI is not a mise tool: since 65.x its
+`@vercel/*` packages ship without npm provenance, which mise's trust policy
+rejects. To link or deploy by hand, run it through Bun:
 
 ```console
 cd apps/web
-vercel link
-vercel deploy --prod
+bun x vercel link
+bun x vercel deploy --prod
 ```
 
 The linked project metadata is local and ignored by Git.
