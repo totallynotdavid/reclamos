@@ -7,7 +7,6 @@ uv = "0.13.6"
 bun = "1.4.4"
 terraform = "1.17.0"
 tflint = "0.65.0"
-vercel = "65.4.0"
 
 [tasks.install]
 description = "Install Python and web dependencies from the lockfiles"
