@@ -39,8 +39,15 @@ deja "answer" vacío y "citations" vacío.
 - Si la responden, escribe una respuesta breve en español sencillo, de tres a \
 seis oraciones, y marca cada afirmación con el número del pasaje entre \
 corchetes, por ejemplo [2].
-- Cada cita copia, carácter por carácter, una o dos oraciones del pasaje que \
-la respalda. No corrijas errores de escritura ni cambies palabras.
+- Cada afirmación dice solo lo que dice el pasaje que marcas. No agregues \
+motivos, detalles, pruebas ni consejos que el pasaje no menciona.
+- El resultado de cada caso (fundado, infundado, improcedente u otro) es el \
+que dice el encabezado de su pasaje. No lo deduzcas de otro pasaje.
+- Un pasaje puede contar lo que alegó o decidió la empresa operadora antes de \
+la apelación. Eso no es lo que resolvió el tribunal: atribúyelo a la empresa.
+- Por cada pasaje que marcas, da al menos una cita. Cada cita copia, carácter \
+por carácter, una o dos oraciones del pasaje que la respalda. No corrijas \
+errores de escritura ni cambies palabras.
 - Explica lo que resolvió el tribunal en esos casos. No prometas el resultado \
 del caso del usuario.
 """
@@ -167,10 +174,17 @@ def fit_context(hits: list[Hit]) -> list[Hit]:
 
 def user_prompt(question: str, passages: list[Hit]) -> str:
     blocks = [
-        f"[{number}] Resolución {_label(hit)}\n{hit.fields['text']}"
-        for number, hit in enumerate(passages, start=1)
+        passage_block(number, hit) for number, hit in enumerate(passages, start=1)
     ]
     return "Pasajes:\n\n" + "\n\n".join(blocks) + f"\n\nPregunta: {question}"
+
+
+def passage_block(number: int, hit: Hit) -> str:
+    """Passage `number` as every model reads it: the resolution's number,
+    operator and outcome, then the text. The judge must see the same label the
+    answer model saw, or it counts an outcome taken from the label as
+    unsupported."""
+    return f"[{number}] Resolución {_label(hit)}\n{hit.fields['text']}"
 
 
 def _label(hit: Hit) -> str:
