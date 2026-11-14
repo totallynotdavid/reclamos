@@ -1,7 +1,13 @@
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 DEFAULT_EMBEDDING_MODEL = "intfloat/multilingual-e5-large"
+DEFAULT_ANSWER_MODEL = "claude-haiku-5-5"
+DEFAULT_JUDGE_MODEL = "claude-sonnet-5-5"
+# What every process together may spend on language models in one Lima day.
+DEFAULT_DAILY_USD_CAP = 2.0
+# Provisional until the answers evaluation measures it on the full corpus.
+DEFAULT_REFUSAL_MIN_SIMILARITY = 0.80
 
 
 @dataclass(frozen=True, slots=True)
@@ -14,6 +20,11 @@ class Settings:
     s3_endpoint_url: str | None = None
     embedding_model: str = DEFAULT_EMBEDDING_MODEL
     embedding_cache_path: str = ".data/models"
+    anthropic_api_key: str | None = field(default=None, repr=False)
+    answer_model: str = DEFAULT_ANSWER_MODEL
+    judge_model: str = DEFAULT_JUDGE_MODEL
+    daily_usd_cap: float = DEFAULT_DAILY_USD_CAP
+    refusal_min_similarity: float = DEFAULT_REFUSAL_MIN_SIMILARITY
 
     @classmethod
     def from_environment(cls) -> "Settings":
@@ -25,6 +36,13 @@ class Settings:
             s3_endpoint_url=os.environ.get("S3_ENDPOINT_URL"),
             embedding_model=os.environ.get("EMBEDDING_MODEL", DEFAULT_EMBEDDING_MODEL),
             embedding_cache_path=os.environ.get("EMBEDDING_CACHE_PATH", ".data/models"),
+            anthropic_api_key=os.environ.get("ANTHROPIC_API_KEY") or None,
+            answer_model=os.environ.get("ANSWER_MODEL", DEFAULT_ANSWER_MODEL),
+            judge_model=os.environ.get("JUDGE_MODEL", DEFAULT_JUDGE_MODEL),
+            daily_usd_cap=float(os.environ.get("DAILY_USD_CAP", DEFAULT_DAILY_USD_CAP)),
+            refusal_min_similarity=float(
+                os.environ.get("REFUSAL_MIN_SIMILARITY", DEFAULT_REFUSAL_MIN_SIMILARITY)
+            ),
         )
 
 
