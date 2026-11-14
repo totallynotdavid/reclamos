@@ -7,9 +7,11 @@
    and `POST /search`.
 4. [Answers](answers.md) describes `POST /answer`, the citation check, the
    refusals and the spend limits.
-5. [Evaluation](evaluation.md) describes the judged questions, `reclamos eval`,
+5. [Cards](cards.md) describes the case cards written offline, their quote
+   check, the judge and `reclamos cards`.
+6. [Evaluation](evaluation.md) describes the judged questions, `reclamos eval`,
    the CI gate and the latest results.
-6. [Operations](operations.md) covers local services, checks, and deployment
+7. [Operations](operations.md) covers local services, checks, and deployment
    verification.
 
 The root [README](../README.md) is the quick start for readers who want to run

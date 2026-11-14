@@ -42,6 +42,12 @@ passage, `judge.py` scores faithfulness for the evaluation, `api.py` is the
 `POST /answer` route, and `commands.py` is `reclamos answers`.
 [Answers](answers.md) describes the refusal rules and the limits.
 
+`apps/api/src/reclamos_api/cards/` writes one case card per resolution offline,
+through the same spend limits: `card.py` builds the prompt and checks each quote
+against the body, `judge.py` reads each field against its quotes,
+`repository.py` owns the `cards` table, and `commands.py` is `reclamos cards`.
+[Cards](cards.md) describes the check and the commands.
+
 `apps/web/src/App.tsx` is the Spanish placeholder page. Vite builds it as a
 static client. `apps/web/vercel.json` owns the Vercel change filter for this
 workspace.

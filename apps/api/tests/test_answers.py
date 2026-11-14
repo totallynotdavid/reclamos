@@ -36,7 +36,7 @@ from reclamos_api.config import Settings
 from reclamos_api.db import database_pool
 from reclamos_api.main import create_app
 from reclamos_api.retrieval.search import Filters, Hit
-from test_search import BILLING, CONTRACT, query, seed_and_run
+from test_search import BILLING, CONTRACT, query
 
 HAIKU, SONNET = "claude-haiku-5-5", "claude-sonnet-5-5"
 # What FakeModel's default 10 input and 20 output tokens cost, at the published
@@ -283,22 +283,31 @@ def test_the_daily_cap_counts_billed_failed_and_unbilled_calls_of_the_lima_day(
 
 
 @pytest.mark.integration
-def test_a_call_in_flight_counts_against_the_daily_cap(database_url: str) -> None:
+@pytest.mark.parametrize("limit", ["daily cap", "run"])
+def test_a_call_in_flight_counts_against_the_daily_cap_and_the_run_budget(
+    database_url: str, limit: str
+) -> None:
+    room = 1.5 * worst_case_usd(PROMPT)
+
     async def work(pool: Any) -> None:
-        ledger = Ledger(pool, daily_cap_usd=1.5 * worst_case_usd(PROMPT))
+        ledger = Ledger(pool, daily_cap_usd=room if limit == "daily cap" else 100.0)
+        budget = Budget(limit_usd=room if limit == "run" else 100.0)
         slow = FakeModel(lambda _: "{}", gate=asyncio.Event())
-        first = asyncio.create_task(ledger.complete(slow, PROMPT, purpose="answer"))
+        first = asyncio.create_task(
+            ledger.complete(slow, PROMPT, purpose="answer", budget=budget)
+        )
         await slow.started.wait()
 
         second = FakeModel(lambda _: "{}")
-        with pytest.raises(SpendRefused):
-            await ledger.complete(second, PROMPT, purpose="answer")
+        with pytest.raises(SpendRefused, match=limit):
+            await ledger.complete(second, PROMPT, purpose="answer", budget=budget)
         assert second.prompts == []
 
         assert slow.gate is not None
         slow.gate.set()
         await first
         assert await ledger.spent_today() == pytest.approx(HAIKU_CALL_USD)
+        assert budget.spent_usd == pytest.approx(HAIKU_CALL_USD)
 
     run_with_pool(database_url, work)
 
@@ -337,27 +346,6 @@ def test_a_call_that_could_pass_a_limit_is_never_made_or_logged(
         assert await llm_calls(pool) == []
 
     run_with_pool(database_url, work)
-
-
-@pytest.fixture
-def embedder() -> HashingEmbedder:
-    return HashingEmbedder()
-
-
-@pytest.fixture
-def settings(
-    database_url: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> Settings:
-    monkeypatch.setenv("DATABASE_URL", database_url)
-    monkeypatch.setenv("PDF_STORE_PATH", str(tmp_path / "pdfs"))
-    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
-    return Settings.from_environment()
-
-
-@pytest.fixture
-def indexed(settings: Settings, embedder: HashingEmbedder, tmp_path: Path) -> Settings:
-    asyncio.run(seed_and_run(settings, embedder, tmp_path / "pdfs"))
-    return settings
 
 
 QUESTION = "¿Me pueden cobrar el cargo fijo y la venta en cuotas del equipo?"

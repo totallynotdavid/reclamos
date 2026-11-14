@@ -9,6 +9,7 @@ is in `apps/api/src/reclamos_api/answers/`.
 | ------------- | ------------------------------------------------------------------- |
 | `llm.py`      | The `LanguageModel` protocol, the Anthropic client and model prices |
 | `spend.py`    | The cost log `llm_calls` and the limits checked before every call   |
+| `quotes.py`   | The rule that a quote is in its text, shared with the cards         |
 | `answer.py`   | The prompt, the refusal rules and the citation check                |
 | `judge.py`    | The faithfulness judge the evaluation runs                          |
 | `api.py`      | The `POST /answer` route                                            |
@@ -92,12 +93,15 @@ Every model call goes through `Ledger.complete` in `spend.py`. It checks these
 limits in order, and a call that would pass one is never made. It raises
 `SpendRefused`.
 
-1. The system prompt and the text together are at most 40,000 characters.
+1. The system prompt and the text together are at most 40,000 characters. A
+   caller may pass another cap: a [card](cards.md) sends a whole body.
 2. The call's worst case is computed: every two characters of prompt count as a
    token, and every output token up to `max_tokens` is used. Spanish runs near
    four characters a token, so the bound is above what a call is billed.
 3. The worst case must fit in the run's `Budget` when the caller passes one.
-   `reclamos answers eval --budget-usd` does.
+   `reclamos answers eval --budget-usd` and the card commands do. A call in
+   flight counts against the budget at its worst case until it returns, so
+   concurrent calls of one run cannot pass it together.
 4. The worst case must fit under `DAILY_USD_CAP`, counted over every row of
    `llm_calls` since midnight in Lima. A transaction-level advisory lock
    serializes the check and the insert of the call's row, so processes that
@@ -119,7 +123,9 @@ counts at `reserved_usd` for the rest of the day.
 that turns its thinking off. Thinking tokens count against `max_tokens`, so a
 thinking model can spend the whole cap before it writes the reply. A model
 missing from `MODELS` cannot be called, because its cost could not be bounded.
-The client makes no retries, since each retry is billed again.
+The client makes no retries, since each retry is billed again. Each `Prompt`
+sets its own timeout: 60 seconds by default, 180 for a card. A timeout can fire
+after the model ran, so it keeps the reserved cost.
 
 Spend is a query away:
 
