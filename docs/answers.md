@@ -37,8 +37,17 @@ ignores case, accents, runs of whitespace and quote marks, because models
 rewrite those. Any other difference drops the citation. A dropped citation does
 not refuse the answer by itself, but the evaluation counts it.
 
-The prompt tells the model to explain what the tribunal decided in the cited
-cases and never to promise the outcome of the user's own case.
+Each passage is sent under a label with its resolution's number, operator and
+outcome. The prompt tells the model to explain what the tribunal decided in the
+cited cases and never to promise the outcome of the user's own case. Each claim
+may say only what the passage it marks says. A case's outcome comes from its
+label, and every marked passage needs a quote. A passage often recounts what the
+operator argued or decided before the appeal. The model must attribute that to
+the operator, not to the tribunal.
+
+The judge reads each passage with the same label. It reads every passage the
+answer marks with `[n]`, as well as those a surviving citation names. A passage
+whose quote was dropped still backs the claim it marks.
 
 ## Route
 
@@ -132,9 +141,13 @@ and sit outside this code.
 | `ANSWER_MODEL`           | `claude-haiku-5-5`  | Writes the answers                                        |
 | `JUDGE_MODEL`            | `claude-sonnet-5-5` | Judges them in the evaluation                             |
 | `DAILY_USD_CAP`          | `2.0`               | US dollars all processes together may spend in a Lima day |
-| `REFUSAL_MIN_SIMILARITY` | `0.80`              | Best-passage similarity below which no call is made       |
+| `REFUSAL_MIN_SIMILARITY` | `0.84`              | Best-passage similarity below which no call is made       |
 
-`0.80` is provisional. The answers evaluation on the full corpus sets it.
+The threshold saves calls. It is not what refuses unanswerable questions. On the
+full corpus (2026-11-14) the model declined all 12 unanswerable questions that
+reached it. The sweep at `0.84` kept every answerable question and refused half
+of the unanswerable ones before any call. At `0.85` it lost 1.7% of answerable
+questions, and at `0.86` it lost 14.7%.
 
 ## Commands
 

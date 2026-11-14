@@ -1,5 +1,6 @@
 import asyncio
 import dataclasses
+import itertools
 import json
 from collections.abc import Callable
 from decimal import Decimal
@@ -17,9 +18,11 @@ from reclamos_api import cli
 from reclamos_api.answers.answer import (
     Answer,
     AnswerSettings,
+    Citation,
     answer_question,
     check_citations,
 )
+from reclamos_api.answers.judge import cited_passages
 from reclamos_api.answers.llm import (
     MAX_PROMPT_CHARS,
     AnthropicModel,
@@ -129,6 +132,19 @@ class FailingClient:
 
 
 REQUEST = httpx2.Request("POST", "https://api.anthropic.com/v1/messages")
+
+
+def test_the_judge_reads_every_passage_the_answer_marks_or_cites() -> None:
+    answer = Answer(
+        "¿Procede el cobro?",
+        "answered",
+        text="Se acreditó la contratación [1]. El recurso fue fundado [2]. Ver [7].",
+        citations=[Citation(1, 1, 0, "acreditó la contratación del servicio")],
+        passages=PASSAGES,
+    )
+    assert cited_passages(answer) == {1, 2}, (
+        "passage 2 is marked but its quote failed; 7 does not exist"
+    )
 
 
 class RecordingMessages:
@@ -538,6 +554,12 @@ def test_the_answers_eval_judges_each_answer_and_writes_the_report(
     assert report["answer_model"] == HAIKU
     assert report["judge_model"] == SONNET
     assert [p.model for p in model.prompts] == [HAIKU, SONNET] * 3
+    for asked, judged in itertools.batched(model.prompts, 2, strict=True):
+        label = asked.text.split("\n")[2]
+        assert label.startswith("[1] Resolución ") and "resultado" in label
+        assert label in judged.text.split("\n"), (
+            "the judge reads the cited passage with the label the answer model saw"
+        )
     summary = report["summary"]
     assert summary["run"] == summary["questions"] == 3
     assert summary["answerable"] == 2 and summary["unanswerable"] == 1

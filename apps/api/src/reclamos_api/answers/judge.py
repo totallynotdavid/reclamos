@@ -4,21 +4,23 @@ The evaluation runs the judge; the API does not. A stronger model than the one
 that wrote the answer reads the answer and the passages it cites.
 """
 
+import re
 from dataclasses import dataclass
 from typing import Any, cast
 
-from reclamos_api.answers.answer import Answer
+from reclamos_api.answers.answer import Answer, passage_block
 from reclamos_api.answers.llm import LanguageModel, Prompt
 from reclamos_api.answers.spend import Budget, Ledger
 
-MAX_JUDGE_TOKENS = 400
+MAX_JUDGE_TOKENS = 800
 
 SYSTEM = """\
 Revisas respuestas escritas a partir de resoluciones del TRASU de OSIPTEL.
 
-Se te da una pregunta, los pasajes que la respuesta cita y la respuesta. Una \
-respuesta es fiel cuando cada afirmación que hace está respaldada por los \
-pasajes. Conocimiento que no está en los pasajes no la respalda, aunque sea \
+Se te da una pregunta, los pasajes que la respuesta cita y la respuesta. Cada \
+pasaje empieza con el número de su resolución, la empresa y el resultado que \
+el tribunal declaró; esos datos también respaldan la respuesta. Una respuesta \
+es fiel cuando cada afirmación que hace está respaldada por los pasajes. Conocimiento que no está en los pasajes no la respalda, aunque sea \
 cierto.
 
 Responde con "faithful": true o false, y en "unsupported" copia las \
@@ -54,9 +56,9 @@ async def judge_answer(
     budget: Budget | None = None,
 ) -> Verdict:
     """Judge an answered `answer` against the passages it cites."""
-    cited = sorted({c.passage for c in answer.citations})
+    cited = sorted(cited_passages(answer))
     passages = "\n\n".join(
-        f"[{number}]\n{answer.passages[number - 1].fields['text']}" for number in cited
+        passage_block(number, answer.passages[number - 1]) for number in cited
     )
     metered = await ledger.complete(
         model,
@@ -85,3 +87,15 @@ async def judge_answer(
     return Verdict(
         reply["faithful"], tuple(str(claim) for claim in unsupported), metered.usd
     )
+
+
+def cited_passages(answer: Answer) -> set[int]:
+    """The passages a verified citation names, and those the text marks with
+    [n]. A marked passage whose quote failed the check still backs the claim
+    beside it, so the judge must read it."""
+    marked = {
+        number
+        for number in map(int, re.findall(r"\[(\d+)\]", answer.text))
+        if 1 <= number <= len(answer.passages)
+    }
+    return marked | {c.passage for c in answer.citations}

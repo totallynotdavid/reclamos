@@ -6,8 +6,8 @@ DEFAULT_ANSWER_MODEL = "claude-haiku-5-5"
 DEFAULT_JUDGE_MODEL = "claude-sonnet-5-5"
 # What every process together may spend on language models in one Lima day.
 DEFAULT_DAILY_USD_CAP = 2.0
-# Provisional until the answers evaluation measures it on the full corpus.
-DEFAULT_REFUSAL_MIN_SIMILARITY = 0.80
+# Set from the answers evaluation's sweep; docs/answers.md gives the reason.
+DEFAULT_REFUSAL_MIN_SIMILARITY = 0.84
 
 
 @dataclass(frozen=True, slots=True)
