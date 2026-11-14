@@ -7,6 +7,7 @@ browser -> apps/web -> apps/api -> PostgreSQL (pgvector)
                               \-> rqueue jobs -> apps/api worker -> gob.pe
                                                       \-> PDF store (disk or S3)
                                                       \-> embedding model (local)
+                              \-> Anthropic API (answers)
 packages/eval -> retrieval metrics and the judged questions
 infra -> AWS ECS, RDS, S3, ECR, IAM
 ```
@@ -33,6 +34,14 @@ the embedding model, `search.py` ranks and fuses, and `api.py` is the
 `POST /search` route. [Retrieval](retrieval.md) describes the chunk model, the
 indexes and fusion.
 
+`apps/api/src/reclamos_api/answers/` writes answers from those passages:
+`llm.py` calls the hosted language model behind the `LanguageModel` protocol,
+`spend.py` logs each call to `llm_calls` and refuses calls that could pass a
+spend limit, `answer.py` builds the prompt and checks every citation against its
+passage, `judge.py` scores faithfulness for the evaluation, `api.py` is the
+`POST /answer` route, and `commands.py` is `reclamos answers`.
+[Answers](answers.md) describes the refusal rules and the limits.
+
 `apps/web/src/App.tsx` is the Spanish placeholder page. Vite builds it as a
 static client. `apps/web/vercel.json` owns the Vercel change filter for this
 workspace.
@@ -52,6 +61,10 @@ S3 PDF bucket, ECR, and the IAM roles those services need. Terraform uses an S3
 backend with native S3 locking; applying it is an operator action.
 
 ## Corpus state
+
+`llm_calls` holds one row per language model call. `answers/spend.py` owns it:
+it inserts the row before the call and settles it after.
+[Answers](answers.md#spend-limits) gives the rules.
 
 Five tables of the database hold shared state: `resolutions` (one row per
 resolution), `chunks` (the passages of a resolution, with their vectors),

@@ -28,6 +28,11 @@ The API listens on port 8000 and the web app runs separately with
 [`.env.example`](../.env.example) lists every environment variable the API, the
 worker and the tests read.
 
+`POST /answer` needs `ANTHROPIC_API_KEY`. Keep the key in a gitignored `.env`
+with mode 600. `DAILY_USD_CAP` bounds what every process sharing the database
+spends in a Lima day, and `llm_calls` records each call
+([answers](answers.md#spend-limits)).
+
 The database is disposable. The API applies its one application schema file on
 startup and owns rqueue schema setup. There are no project migrations: when
 `schema.sql` changes, recreate the database with `docker compose down -v`. The
