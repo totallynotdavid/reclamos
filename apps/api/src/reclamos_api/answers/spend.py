@@ -108,7 +108,7 @@ class Ledger:
             return await connection.fetchval(
                 """
                 INSERT INTO llm_calls (purpose, model, reserved_usd)
-                VALUES ($1, $2, $3) RETURNING id
+                VALUES ($1, $2, $3::float8) RETURNING id
                 """,
                 purpose,
                 model,
@@ -121,7 +121,7 @@ class Ledger:
                 """
                 UPDATE llm_calls
                 SET finished_at = now(), input_tokens = $2, output_tokens = $3,
-                    usd = $4
+                    usd = $4::float8
                 WHERE id = $1
                 """,
                 call_id,
@@ -133,7 +133,7 @@ class Ledger:
     async def _fail(self, call_id: int, usd: float, error: str) -> None:
         async with self._pool.acquire() as connection:
             await connection.execute(
-                "UPDATE llm_calls SET finished_at = now(), usd = $2, error = $3"
+                "UPDATE llm_calls SET finished_at = now(), usd = $2::float8, error = $3"
                 " WHERE id = $1",
                 call_id,
                 usd,

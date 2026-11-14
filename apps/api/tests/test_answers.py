@@ -1,7 +1,10 @@
 import asyncio
+import dataclasses
 import json
 from collections.abc import Callable
+from decimal import Decimal
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 import anthropic
@@ -128,6 +131,50 @@ class FailingClient:
 REQUEST = httpx2.Request("POST", "https://api.anthropic.com/v1/messages")
 
 
+class RecordingMessages:
+    def __init__(self) -> None:
+        self.requests: list[dict[str, Any]] = []
+
+    async def create(self, **request: Any) -> Any:
+        self.requests.append(request)
+        return SimpleNamespace(
+            content=[
+                SimpleNamespace(type="thinking", thinking="..."),
+                SimpleNamespace(type="text", text='{"supported": false}'),
+            ],
+            usage=SimpleNamespace(input_tokens=12, output_tokens=7),
+            stop_reason="end_turn",
+        )
+
+
+class RecordingClient:
+    def __init__(self) -> None:
+        self.messages = RecordingMessages()
+
+
+@pytest.mark.parametrize(
+    ("model", "thinking"),
+    [
+        pytest.param(HAIKU, {"type": "disabled"}, id="haiku"),
+        pytest.param(SONNET, {"type": "between_tools"}, id="sonnet"),
+    ],
+)
+def test_every_request_turns_thinking_off_and_the_reply_is_its_text(
+    model: str, thinking: dict[str, str]
+) -> None:
+    """Thinking tokens count against `max_tokens`. Left on, they spent the whole
+    cap of a real answer before it wrote any text."""
+    client = RecordingClient()
+    prompt = dataclasses.replace(PROMPT, model=model)
+
+    completion = asyncio.run(AnthropicModel(client=client).complete(prompt))
+
+    assert client.messages.requests[0]["thinking"] == thinking
+    assert client.messages.requests[0]["max_tokens"] == prompt.max_tokens
+    assert completion.text == '{"supported": false}'
+    assert (completion.input_tokens, completion.output_tokens) == (12, 7)
+
+
 def test_only_an_error_status_from_the_api_counts_as_not_billed() -> None:
     """A status error is a refused request. A timeout may come after the model
     ran, so it must reach the ledger as it is and keep the reserved cost."""
@@ -209,6 +256,10 @@ def test_the_daily_cap_counts_billed_failed_and_unbilled_calls_of_the_lima_day(
             [HAIKU_CALL_USD, 0.0, worst]
         )
         assert [float(r["reserved_usd"]) for r in rows] == pytest.approx([worst] * 3)
+        assert rows[0]["usd"] == Decimal(repr(HAIKU_CALL_USD)), (
+            "an amount is stored as the float's shortest decimal"
+        )
+        assert rows[0]["reserved_usd"] == Decimal(repr(worst))
         assert rows[0]["error"] is None
         assert "overloaded" in rows[1]["error"]
 

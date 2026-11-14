@@ -55,13 +55,29 @@ class Price:
         return (input_tokens * self.input + output_tokens * self.output) / 1_000_000
 
 
+@dataclass(frozen=True, slots=True)
+class ModelSpec:
+    price: Price
+    # The `thinking` setting that turns thinking off. Without one the model
+    # thinks adaptively and its thinking tokens count against `max_tokens`, so
+    # a short cap can end the reply before any text is written. Haiku 5.5 takes
+    # "disabled"; Sonnet 5.5 rejects it and takes "between_tools".
+    # https://platform.claude.com/docs/en/api/errors, read 2026-11-14.
+    thinking_off: dict[str, str]
+
+
 # https://platform.claude.com/docs/en/about-claude/pricing, read 2026-11-14.
 # Haiku 5.5 doubles in price above 100,000 prompt tokens; MAX_PROMPT_CHARS keeps
 # every prompt far below that. A model missing here cannot be called, because
 # its cost could not be capped.
-PRICES = {
-    "claude-haiku-5-5": Price(input=0.10, output=0.50),
-    "claude-sonnet-5-5": Price(input=2.00, output=10.00),
+MODELS = {
+    "claude-haiku-5-5": ModelSpec(
+        price=Price(input=0.10, output=0.50), thinking_off={"type": "disabled"}
+    ),
+    "claude-sonnet-5-5": ModelSpec(
+        price=Price(input=2.00, output=10.00),
+        thinking_off={"type": "between_tools"},
+    ),
 }
 
 MAX_PROMPT_CHARS = 40_000
@@ -75,13 +91,17 @@ class UnpricedModel(Exception):
     pass
 
 
-def price_of(model: str) -> Price:
+def spec_of(model: str) -> ModelSpec:
     try:
-        return PRICES[model]
+        return MODELS[model]
     except KeyError:
         raise UnpricedModel(
-            f"no price is known for {model!r}; known: {', '.join(PRICES)}"
+            f"no price is known for {model!r}; known: {', '.join(MODELS)}"
         ) from None
+
+
+def price_of(model: str) -> Price:
+    return spec_of(model).price
 
 
 def worst_case_usd(prompt: Prompt) -> float:
@@ -120,6 +140,7 @@ class AnthropicModel:
                 max_tokens=prompt.max_tokens,
                 system=prompt.system,
                 messages=[{"role": "user", "content": prompt.text}],
+                thinking=spec_of(prompt.model).thinking_off,
                 output_config={
                     "format": {"type": "json_schema", "schema": prompt.schema}
                 },

@@ -106,9 +106,11 @@ counts and the billed `usd`. When it fails, it gets the error and a cost:
 A process that dies during a call leaves its row with no `usd`, and the row
 counts at `reserved_usd` for the rest of the day.
 
-`PRICES` in `llm.py` holds the price per million tokens of each model. A model
-missing from it cannot be called, because its cost could not be bounded. The
-client makes no retries, since each retry is billed again.
+`MODELS` in `llm.py` holds each model's price per million tokens and the setting
+that turns its thinking off. Thinking tokens count against `max_tokens`, so a
+thinking model can spend the whole cap before it writes the reply. A model
+missing from `MODELS` cannot be called, because its cost could not be bounded.
+The client makes no retries, since each retry is billed again.
 
 Spend is a query away:
 
