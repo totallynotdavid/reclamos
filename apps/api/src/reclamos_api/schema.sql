@@ -99,3 +99,21 @@ CREATE INDEX IF NOT EXISTS chunks_embedding_idx
     ON chunks USING hnsw (embedding vector_cosine_ops);
 CREATE INDEX IF NOT EXISTS resolutions_filter_idx
     ON resolutions (claim_type, outcome, resolved_on);
+
+-- One call to a language model. `reserved_usd` is the most the call can cost,
+-- written before the call; `usd` is what it was billed, written after. A call
+-- with no `usd` is in flight and counts at `reserved_usd` (answers/spend.py).
+CREATE TABLE IF NOT EXISTS llm_calls (
+    id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    started_at timestamptz NOT NULL DEFAULT now(),
+    finished_at timestamptz,
+    purpose text NOT NULL CHECK (purpose IN ('answer', 'judge')),
+    model text NOT NULL,
+    reserved_usd numeric NOT NULL CHECK (reserved_usd >= 0),
+    input_tokens integer,
+    output_tokens integer,
+    usd numeric CHECK (usd >= 0),
+    error text
+);
+
+CREATE INDEX IF NOT EXISTS llm_calls_started_idx ON llm_calls (started_at);

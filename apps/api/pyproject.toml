@@ -4,6 +4,7 @@ version = "0.1.0"
 description = "FastAPI service for Reclamos"
 requires-python = ">=3.13,<3.14"
 dependencies = [
+  "anthropic>=2.8.0",
   "asyncpg>=0.32.0",
   "boto3>=1.44.1",
   "fastapi>=0.162.5",

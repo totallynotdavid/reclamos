@@ -9,6 +9,8 @@ from reclamos_eval.gate import BASELINE, SUBSET
 from reclamos_eval.questions import QUESTIONS, QuestionFileError
 from rqueue import Queue, Worker  # pyright: ignore[reportMissingTypeStubs]
 
+from reclamos_api.answers import commands as answer_commands
+from reclamos_api.answers.llm import LanguageModel
 from reclamos_api.config import Settings
 from reclamos_api.corpus import repository
 from reclamos_api.corpus.jobs import QUEUE_NAME, Pipeline
@@ -72,6 +74,38 @@ def build_parser() -> argparse.ArgumentParser:
         type=Path,
         default=evaluation.DEFAULT_OUTPUT,
         help="where to write the results as JSON (default: %(default)s)",
+    )
+
+    answering = commands.add_parser(
+        "answers", help="answers written by the language model from the corpus"
+    )
+    answer_actions = answering.add_subparsers(dest="action", required=True)
+    ask = answer_actions.add_parser("ask", help="answer one question")
+    ask.add_argument("question")
+    answer_eval = answer_actions.add_parser(
+        "eval", help="answer and judge the question set, within a budget"
+    )
+    answer_eval.add_argument(
+        "--budget-usd",
+        type=float,
+        required=True,
+        help="the most the run may spend; it stops before passing it",
+    )
+    answer_eval.add_argument("--questions", type=Path, default=QUESTIONS)
+    answer_eval.add_argument(
+        "--output", type=Path, default=answer_commands.DEFAULT_OUTPUT
+    )
+    answer_eval.add_argument(
+        "--limit", type=int, default=None, help="answer only the first N questions"
+    )
+    answer_eval.add_argument(
+        "--min-similarity",
+        type=float,
+        default=None,
+        help="refusal threshold for this run (default: REFUSAL_MIN_SIMILARITY)",
+    )
+    answer_eval.add_argument(
+        "--no-judge", action="store_true", help="skip the faithfulness judge"
     )
 
     gate = commands.add_parser("gate", help="the CI regression gate")
@@ -151,6 +185,7 @@ async def run(
     settings: Settings,
     fetcher: Fetcher | None,
     embedder: Embedder | None,
+    model: LanguageModel | None = None,
 ) -> str:
     if arguments.command == "eval":
         return await evaluation.run_eval(
@@ -161,6 +196,8 @@ async def run(
         )
     if arguments.command == "gate":
         return await run_gate(arguments, settings, embedder)
+    if arguments.command == "answers":
+        return await run_answers(arguments, settings, embedder, model)
     if arguments.action in ("crawl", "reindex"):
         fetcher = fetcher or Fetcher.create()
         embedder = embedder or embedder_from_settings(settings)
@@ -181,6 +218,29 @@ async def run(
         finally:
             await fetcher.aclose()
     return await stats(settings)
+
+
+async def run_answers(
+    arguments: argparse.Namespace,
+    settings: Settings,
+    embedder: Embedder | None,
+    model: LanguageModel | None,
+) -> str:
+    model = answer_commands.require_model(settings, model)
+    embedder = embedder or embedder_from_settings(settings)
+    if arguments.action == "ask":
+        return await answer_commands.ask(settings, embedder, model, arguments.question)
+    return await answer_commands.evaluate(
+        settings,
+        embedder,
+        model,
+        questions_path=arguments.questions,
+        output=arguments.output,
+        budget_usd=arguments.budget_usd,
+        limit=arguments.limit,
+        min_similarity=arguments.min_similarity,
+        judge=not arguments.no_judge,
+    )
 
 
 async def run_gate(
@@ -213,13 +273,16 @@ def main(
     *,
     fetcher: Fetcher | None = None,
     embedder: Embedder | None = None,
+    model: LanguageModel | None = None,
 ) -> None:
-    """Run a `reclamos` command. `fetcher` and `embedder` replace the HTTP
-    client and the embedding model."""
+    """Run a `reclamos` command. `fetcher`, `embedder` and `model` replace the
+    HTTP client, the embedding model and the language model."""
     arguments = build_parser().parse_args(argv)
     try:
         print(
-            asyncio.run(run(arguments, Settings.from_environment(), fetcher, embedder))
+            asyncio.run(
+                run(arguments, Settings.from_environment(), fetcher, embedder, model)
+            )
         )
     except (DatasetError, QuestionFileError) as error:
         raise SystemExit(str(error)) from error
