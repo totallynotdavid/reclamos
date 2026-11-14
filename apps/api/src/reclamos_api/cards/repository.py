@@ -110,6 +110,37 @@ async def save_verdict(
     )
 
 
+async def served_fields(
+    connection: Any, resolution_ids: list[int]
+) -> dict[int, dict[str, Field]]:
+    """The fields a visitor may read, by resolution. A card serves only while it
+    is current and judged, and only the fields the judge found no unsupported
+    claim in."""
+    rows = await connection.fetch(
+        """
+        SELECT c.resolution_id, c.fields, c.unsupported
+        FROM cards c JOIN resolutions r ON r.id = c.resolution_id
+        WHERE c.resolution_id = ANY($1::bigint[])
+          AND c.prompt_version = $2
+          AND c.body_sha256 = encode(sha256(convert_to(r.body, 'UTF8')), 'hex')
+          AND c.judged_at IS NOT NULL
+        """,
+        resolution_ids,
+        PROMPT_VERSION,
+    )
+    served: dict[int, dict[str, Field]] = {}
+    for row in rows:
+        flagged = {item["field"] for item in json.loads(row["unsupported"])}
+        fields = {
+            name: Field(value["text"], tuple(value["quotes"]))
+            for name, value in json.loads(row["fields"]).items()
+            if name not in flagged
+        }
+        if fields:
+            served[row["resolution_id"]] = fields
+    return served
+
+
 async def report_rows(connection: Any) -> list[Any]:
     """Every card beside what parse read from the same resolution."""
     return await connection.fetch(

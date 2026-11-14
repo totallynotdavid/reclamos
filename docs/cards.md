@@ -2,8 +2,9 @@
 
 A case card says what one resolution decided, in four short fields a reader can
 compare with their own case. Cards are written offline by a language model and
-stored in the `cards` table. Serving a card makes no model call, so visitors
-never spend model credit. The code is in `apps/api/src/reclamos_api/cards/`.
+stored in the `cards` table. [`POST /cases`](cases.md) serves them with no model
+call, so visitors never spend model credit. The code is in
+`apps/api/src/reclamos_api/cards/`.
 
 | File            | Owns                                                        |
 | --------------- | ----------------------------------------------------------- |
@@ -31,9 +32,9 @@ quote. The number, operator and outcome a page shows come from
 
 `check_card` keeps only what the body backs:
 
-- A quote survives when it is in the body by the rule [answers](answers.md) uses
-  for citations: at least 20 characters, comparing without case, accents, runs
-  of whitespace or quote marks.
+- A quote survives when it is in the body by the [quote rule](llm.md#quotes): at
+  least 20 characters, comparing without case, accents, runs of whitespace or
+  quote marks.
 - A field with no surviving quote, or with no text, is dropped.
 - A reading survives when its value is valid and its quote is in the body. An
   outcome must be one of the parse outcomes and a date must be a real date. A
@@ -60,8 +61,8 @@ empty list is faithful.
 ## Commands
 
 The commands run on a host with `ANTHROPIC_API_KEY` set. Each model call goes
-through the [spend limits](answers.md#spend-limits) and logs its row in
-`llm_calls`, with purpose `card` or `judge`.
+through the [spend limits](llm.md#spend-limits) and logs its row in `llm_calls`,
+with purpose `card` or `judge`.
 
 `reclamos cards build --budget-usd N` writes a card for every resolution with a
 body and no current card, smallest id first. It stops before the call that could

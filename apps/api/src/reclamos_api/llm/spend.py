@@ -10,7 +10,7 @@ import asyncio
 from dataclasses import dataclass
 from typing import Any, Literal
 
-from reclamos_api.answers.llm import (
+from reclamos_api.llm.client import (
     MAX_PROMPT_CHARS,
     Completion,
     LanguageModel,
@@ -20,7 +20,7 @@ from reclamos_api.answers.llm import (
     worst_case_usd,
 )
 
-Purpose = Literal["answer", "judge", "card"]
+Purpose = Literal["judge", "card"]
 
 # Any constant works; it only has to be the same in every process that spends.
 _SPEND_LOCK = 7_351_402

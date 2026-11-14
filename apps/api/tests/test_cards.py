@@ -5,9 +5,9 @@ import pytest
 from fakeembed import HashingEmbedder
 from fakemodel import FakeModel, as_rewritten
 from reclamos_api import cli
-from reclamos_api.answers.llm import Prompt
 from reclamos_api.cards import judge
 from reclamos_api.config import Settings
+from reclamos_api.llm.client import Prompt
 from test_search import BILLING, CONTRACT, ENTEL, QUEJA, query
 
 INVENTED = "el tribunal ordenó devolver diez mil soles al usuario"

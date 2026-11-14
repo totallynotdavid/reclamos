@@ -22,12 +22,12 @@ def _one_of(allowed: tuple[str, ...]):
     return AfterValidator(check)
 
 
-class SearchRequest(BaseModel):
+class QueryRequest(BaseModel):
+    """A query and the filters on the resolutions it may return."""
+
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
 
     query: str = Field(min_length=1, max_length=MAX_QUERY_CHARS)
-    k: int = Field(default=DEFAULT_K, ge=1, le=MAX_K)
-    mode: Mode = "hybrid"
     claim_type: Annotated[str, _one_of(CLAIM_TYPE_NAMES)] | None = None
     operator: str | None = Field(default=None, min_length=1, max_length=120)
     outcome: Annotated[str, _one_of(OUTCOME_NAMES)] | None = None
@@ -35,10 +35,24 @@ class SearchRequest(BaseModel):
     date_to: date | None = None
 
     @model_validator(mode="after")
-    def dates_in_order(self) -> "SearchRequest":
+    def dates_in_order(self) -> "QueryRequest":
         if self.date_from and self.date_to and self.date_from > self.date_to:
             raise ValueError("date_from is after date_to")
         return self
+
+    def filters(self) -> Filters:
+        return Filters(
+            claim_type=self.claim_type,
+            operator=self.operator,
+            outcome=self.outcome,
+            date_from=self.date_from,
+            date_to=self.date_to,
+        )
+
+
+class SearchRequest(QueryRequest):
+    k: int = Field(default=DEFAULT_K, ge=1, le=MAX_K)
+    mode: Mode = "hybrid"
 
 
 class SearchHit(BaseModel):
@@ -80,13 +94,7 @@ async def search_chunks(request: Request, body: SearchRequest) -> SearchResponse
             query=body.query,
             k=body.k,
             mode=body.mode,
-            filters=Filters(
-                claim_type=body.claim_type,
-                operator=body.operator,
-                outcome=body.outcome,
-                date_from=body.date_from,
-                date_to=body.date_to,
-            ),
+            filters=body.filters(),
         )
     except IndexModelMismatch as mismatch:
         raise HTTPException(status_code=503, detail=str(mismatch)) from None

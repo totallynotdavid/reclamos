@@ -102,7 +102,9 @@ CREATE INDEX IF NOT EXISTS resolutions_filter_idx
 
 -- One call to a language model. `reserved_usd` is the most the call can cost,
 -- written before the call; `usd` is what it was billed, written after. A call
--- with no `usd` is in flight and counts at `reserved_usd` (answers/spend.py).
+-- with no `usd` is in flight and counts at `reserved_usd` (llm/spend.py).
+-- `answer` names the calls of the query-time answers that cards replaced, so
+-- the rows already logged stay valid.
 CREATE TABLE IF NOT EXISTS llm_calls (
     id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     started_at timestamptz NOT NULL DEFAULT now(),

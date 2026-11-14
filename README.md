@@ -31,8 +31,10 @@ Build the corpus of TRASU resolutions and print what it holds with
 [corpus guide](docs/corpus.md). `POST /search` ranks passages of the corpus
 against a question; see [retrieval](docs/retrieval.md). `reclamos eval` scores
 that search on judged questions; see [evaluation](docs/evaluation.md).
-`POST /answer` and `reclamos answers ask` answer from those passages with a
-hosted model, within a daily spend cap; see [answers](docs/answers.md).
+`reclamos cards build` writes a case card per resolution offline, within a spend
+budget; see [cards](docs/cards.md). `POST /cases` returns the resolutions most
+like a visitor's problem with their cards, and calls no model; see
+[cases](docs/cases.md).
 
 Run the quality gate with:
 
