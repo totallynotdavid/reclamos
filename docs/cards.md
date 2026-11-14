@@ -31,9 +31,9 @@ quote. The number, operator and outcome a page shows come from
 
 `check_card` keeps only what the body backs:
 
-- A quote survives when it is in the body by the rule [answers](answers.md)
-  uses for citations: at least 20 characters, comparing without case, accents,
-  runs of whitespace or quote marks.
+- A quote survives when it is in the body by the rule [answers](answers.md) uses
+  for citations: at least 20 characters, comparing without case, accents, runs
+  of whitespace or quote marks.
 - A field with no surviving quote, or with no text, is dropped.
 - A reading survives when its value is valid and its quote is in the body. An
   outcome must be one of the parse outcomes and a date must be a real date. A
@@ -64,9 +64,9 @@ through the [spend limits](answers.md#spend-limits) and logs its row in
 `llm_calls`, with purpose `card` or `judge`.
 
 `reclamos cards build --budget-usd N` writes a card for every resolution with a
-body and no current card, smallest id first. It stops before the call that
-could take the run past `N` and prints where it stopped. A call in flight counts
-at its worst case, so `--concurrency` cannot pass the budget.
+body and no current card, smallest id first. It stops before the call that could
+take the run past `N` and prints where it stopped. A call in flight counts at
+its worst case, so `--concurrency` cannot pass the budget.
 
 | Flag              | Meaning                                   |
 | ----------------- | ----------------------------------------- |
@@ -91,10 +91,10 @@ Perú S.A.C." matches "AMERICA MOVIL PERU S.A.C.". A date matches on its value.
 
 ## Limits
 
-A card prompt is at most 60,000 characters, above the longest body in the
-corpus (47,053 characters, 2026-11-14). The reply is capped at 3,000 tokens and
-the call times out after 180 seconds. A card call on the longest body reserves
-about US$0.08 with Sonnet 5.5.
+A card prompt is at most 60,000 characters, above the longest body in the corpus
+(47,053 characters, 2026-11-14). The reply is capped at 3,000 tokens and the
+call times out after 180 seconds. A card call on the longest body reserves about
+US$0.08 with Sonnet 5.5.
 
 ## Settings
 
