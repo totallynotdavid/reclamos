@@ -107,7 +107,7 @@ CREATE TABLE IF NOT EXISTS llm_calls (
     id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     started_at timestamptz NOT NULL DEFAULT now(),
     finished_at timestamptz,
-    purpose text NOT NULL CHECK (purpose IN ('answer', 'judge')),
+    purpose text NOT NULL CHECK (purpose IN ('answer', 'judge', 'card')),
     model text NOT NULL,
     reserved_usd numeric NOT NULL CHECK (reserved_usd >= 0),
     input_tokens integer,
@@ -117,3 +117,23 @@ CREATE TABLE IF NOT EXISTS llm_calls (
 );
 
 CREATE INDEX IF NOT EXISTS llm_calls_started_idx ON llm_calls (started_at);
+
+-- What a language model read from one resolution's body, written offline
+-- (cards/). `fields` and `readings` hold only what passed the quote check;
+-- `rejected` holds the rest. A card is current while `prompt_version` and
+-- `body_sha256` match the prompt and the body it was written from.
+-- `unsupported` is null until the card is judged.
+CREATE TABLE IF NOT EXISTS cards (
+    resolution_id bigint PRIMARY KEY REFERENCES resolutions (id) ON DELETE CASCADE,
+    prompt_version text NOT NULL,
+    body_sha256 text NOT NULL,
+    model text NOT NULL,
+    fields jsonb NOT NULL,
+    readings jsonb NOT NULL,
+    rejected jsonb NOT NULL,
+    usd numeric NOT NULL CHECK (usd >= 0),
+    written_at timestamptz NOT NULL DEFAULT now(),
+    judge_model text,
+    unsupported jsonb,
+    judged_at timestamptz
+);

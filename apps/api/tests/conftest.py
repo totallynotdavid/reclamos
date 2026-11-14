@@ -4,10 +4,14 @@ import shutil
 import subprocess
 import uuid
 from collections.abc import Iterator
+from pathlib import Path
 from urllib.parse import urlsplit, urlunsplit
 
 import asyncpg
 import pytest
+from fakeembed import HashingEmbedder
+from reclamos_api.config import Settings
+from test_search import seed_and_run
 from testcontainers.community.postgres import PostgresContainer
 
 
@@ -65,3 +69,25 @@ def database_url(postgres_server: str) -> Iterator[str]:
         yield urlunsplit(parts._replace(path=f"/{name}"))
     finally:
         asyncio.run(run_admin(f'DROP DATABASE "{name}" WITH (FORCE)'))
+
+
+@pytest.fixture
+def embedder() -> HashingEmbedder:
+    return HashingEmbedder()
+
+
+@pytest.fixture
+def settings(
+    database_url: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> Settings:
+    monkeypatch.setenv("DATABASE_URL", database_url)
+    monkeypatch.setenv("PDF_STORE_PATH", str(tmp_path / "pdfs"))
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    return Settings.from_environment()
+
+
+@pytest.fixture
+def indexed(settings: Settings, embedder: HashingEmbedder, tmp_path: Path) -> Settings:
+    """A database holding the three fixture resolutions, chunked and embedded."""
+    asyncio.run(seed_and_run(settings, embedder, tmp_path / "pdfs"))
+    return settings

@@ -20,7 +20,7 @@ from reclamos_api.answers.llm import (
     worst_case_usd,
 )
 
-Purpose = Literal["answer", "judge"]
+Purpose = Literal["answer", "judge", "card"]
 
 # Any constant works; it only has to be the same in every process that spends.
 _SPEND_LOCK = 7_351_402
@@ -40,7 +40,9 @@ class SpendRefused(Exception):
 
 @dataclass(slots=True)
 class Budget:
-    """A limit on one run, such as an evaluation, on top of the daily cap."""
+    """A limit on one run, such as an evaluation, on top of the daily cap. A
+    call in flight counts at its worst case, so concurrent calls of one run
+    cannot pass the limit together."""
 
     limit_usd: float
     spent_usd: float = 0.0
@@ -68,31 +70,36 @@ class Ledger:
         *,
         purpose: Purpose,
         budget: Budget | None = None,
+        max_prompt_chars: int = MAX_PROMPT_CHARS,
     ) -> Metered:
-        if len(prompt.system) + len(prompt.text) > MAX_PROMPT_CHARS:
-            raise SpendRefused(f"the prompt is over {MAX_PROMPT_CHARS} characters")
+        if len(prompt.system) + len(prompt.text) > max_prompt_chars:
+            raise SpendRefused(f"the prompt is over {max_prompt_chars} characters")
         reserved = worst_case_usd(prompt)
         if budget is not None and budget.spent_usd + reserved > budget.limit_usd:
             raise SpendRefused(
                 f"the run has spent US${budget.spent_usd:.4f} of US${budget.limit_usd:.2f}"
                 f" and this call can cost US${reserved:.4f}"
             )
-        call_id = await self._reserve(prompt.model, purpose, reserved)
-        try:
-            completion = await model.complete(prompt)
-        except BaseException as error:
-            billed = 0.0 if isinstance(error, NotBilled) else reserved
-            await asyncio.shield(self._fail(call_id, billed, repr(error)))
-            if budget is not None:
-                budget.spent_usd += billed
-            raise
-        usd = price_of(prompt.model).usd(
-            completion.input_tokens, completion.output_tokens
-        )
-        await asyncio.shield(self._settle(call_id, completion, usd))
+        # Taken before the first await, so a concurrent call of the run sees it.
         if budget is not None:
-            budget.spent_usd += usd
-        return Metered(completion, usd)
+            budget.spent_usd += reserved
+        billed = 0.0
+        try:
+            call_id = await self._reserve(prompt.model, purpose, reserved)
+            try:
+                completion = await model.complete(prompt)
+            except BaseException as error:
+                billed = 0.0 if isinstance(error, NotBilled) else reserved
+                await asyncio.shield(self._fail(call_id, billed, repr(error)))
+                raise
+            billed = price_of(prompt.model).usd(
+                completion.input_tokens, completion.output_tokens
+            )
+            await asyncio.shield(self._settle(call_id, completion, billed))
+            return Metered(completion, billed)
+        finally:
+            if budget is not None:
+                budget.spent_usd += billed - reserved
 
     async def _reserve(self, model: str, purpose: Purpose, reserved: float) -> int:
         async with self._pool.acquire() as connection, connection.transaction():

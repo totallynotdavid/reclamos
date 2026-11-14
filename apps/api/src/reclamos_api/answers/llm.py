@@ -16,6 +16,9 @@ class Prompt:
     text: str
     schema: dict[str, Any]
     max_tokens: int
+    # A timeout can fire after the model ran, so the call stays billed. Set it
+    # long enough for `max_tokens` of output.
+    timeout_s: float = 60.0
 
 
 @dataclass(frozen=True, slots=True)
@@ -128,7 +131,7 @@ class AnthropicModel:
             from anthropic import AsyncAnthropic
 
             # Retries are left to the caller: each retry is billed again.
-            client = AsyncAnthropic(api_key=api_key, max_retries=0, timeout=60.0)
+            client = AsyncAnthropic(api_key=api_key, max_retries=0)
         self._client = client
 
     async def complete(self, prompt: Prompt) -> Completion:
@@ -144,6 +147,7 @@ class AnthropicModel:
                 output_config={
                     "format": {"type": "json_schema", "schema": prompt.schema}
                 },
+                timeout=prompt.timeout_s,
             )
         except APIStatusError as error:
             raise NotBilled(f"{error.status_code}: {error.message}") from error

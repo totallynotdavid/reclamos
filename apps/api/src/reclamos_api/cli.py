@@ -11,6 +11,7 @@ from rqueue import Queue, Worker  # pyright: ignore[reportMissingTypeStubs]
 
 from reclamos_api.answers import commands as answer_commands
 from reclamos_api.answers.llm import LanguageModel
+from reclamos_api.cards import commands as card_commands
 from reclamos_api.config import Settings
 from reclamos_api.corpus import repository
 from reclamos_api.corpus.jobs import QUEUE_NAME, Pipeline
@@ -108,6 +109,32 @@ def build_parser() -> argparse.ArgumentParser:
         "--no-judge", action="store_true", help="skip the faithfulness judge"
     )
 
+    carding = commands.add_parser(
+        "cards", help="case cards written offline by the language model"
+    )
+    card_actions = carding.add_subparsers(dest="action", required=True)
+    for name, help_text in (
+        ("build", "write a card for each resolution without a current one"),
+        ("judge", "judge each card without a verdict"),
+    ):
+        step = card_actions.add_parser(name, help=help_text)
+        step.add_argument(
+            "--budget-usd",
+            type=float,
+            required=True,
+            help="the most the run may spend; it stops before passing it",
+        )
+        step.add_argument(
+            "--concurrency",
+            type=int,
+            default=card_commands.DEFAULT_CONCURRENCY,
+            help="calls in flight at once (default: %(default)s)",
+        )
+    card_actions.choices["build"].add_argument(
+        "--limit", type=int, default=None, help="write at most N cards"
+    )
+    card_actions.add_parser("report", help="print what the cards hold and drop")
+
     gate = commands.add_parser("gate", help="the CI regression gate")
     steps = gate.add_subparsers(dest="action", required=True)
     for name, help_text in (
@@ -198,6 +225,8 @@ async def run(
         return await run_gate(arguments, settings, embedder)
     if arguments.command == "answers":
         return await run_answers(arguments, settings, embedder, model)
+    if arguments.command == "cards":
+        return await run_cards(arguments, settings, model)
     if arguments.action in ("crawl", "reindex"):
         fetcher = fetcher or Fetcher.create()
         embedder = embedder or embedder_from_settings(settings)
@@ -240,6 +269,30 @@ async def run_answers(
         limit=arguments.limit,
         min_similarity=arguments.min_similarity,
         judge=not arguments.no_judge,
+    )
+
+
+async def run_cards(
+    arguments: argparse.Namespace,
+    settings: Settings,
+    model: LanguageModel | None,
+) -> str:
+    if arguments.action == "report":
+        return await card_commands.report(settings)
+    model = answer_commands.require_model(settings, model)
+    if arguments.action == "build":
+        return await card_commands.build(
+            settings,
+            model,
+            budget_usd=arguments.budget_usd,
+            concurrency=arguments.concurrency,
+            limit=arguments.limit,
+        )
+    return await card_commands.judge(
+        settings,
+        model,
+        budget_usd=arguments.budget_usd,
+        concurrency=arguments.concurrency,
     )
 
 

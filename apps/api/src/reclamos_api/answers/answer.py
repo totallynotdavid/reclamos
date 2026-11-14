@@ -6,12 +6,11 @@ similar enough to the question (no call is made), the model says the passages
 do not answer, or none of its citations survive the check.
 """
 
-import re
-import unicodedata
 from dataclasses import dataclass, field
 from typing import Any, Literal, cast
 
 from reclamos_api.answers.llm import LanguageModel, Prompt
+from reclamos_api.answers.quotes import is_quoted
 from reclamos_api.answers.spend import Budget, Ledger
 from reclamos_api.retrieval.embedder import Embedder
 from reclamos_api.retrieval.search import NO_FILTERS, Filters, Hit, search
@@ -21,9 +20,6 @@ from reclamos_api.retrieval.search import NO_FILTERS, Filters, Hit, search
 MAX_PASSAGES = 6
 MAX_CONTEXT_CHARS = 9_000
 MAX_ANSWER_TOKENS = 900
-
-# A quote shorter than this proves little: "el reclamo" is in every passage.
-MIN_QUOTE_CHARS = 20
 
 Outcome = Literal["answered", "refused"]
 Reason = Literal["no_passages", "low_similarity", "model_declined", "unverified"]
@@ -210,8 +206,7 @@ def check_citations(
         valid = (
             isinstance(number, int)
             and 1 <= number <= len(passages)
-            and len(normalize(quote)) >= MIN_QUOTE_CHARS
-            and normalize(quote) in normalize(passages[number - 1].fields["text"])
+            and is_quoted(quote, passages[number - 1].fields["text"])
         )
         if not valid:
             rejected.append({"passage": number, "quote": quote})
@@ -220,19 +215,3 @@ def check_citations(
         hit = passages[number - 1]
         kept.append(Citation(number, hit.resolution_id, hit.ordinal, quote.strip()))
     return kept, rejected
-
-
-def normalize(text: str) -> str:
-    """Compare text as a reader would: case, accents, runs of whitespace and
-    the quote marks a model rewrites do not count."""
-    plain = unicodedata.normalize("NFKD", text.lower())
-    plain = "".join(c for c in plain if not unicodedata.combining(c))
-    plain = plain.translate(_NO_QUOTE_MARKS)
-    return re.sub(r"\s+", " ", plain).strip()
-
-
-# Straight, angle and curly quotes. Written as code points because ruff flags
-# curly single quotes in source as look-alikes of the backtick.
-_NO_QUOTE_MARKS: dict[int, None] = dict.fromkeys(
-    (ord('"'), ord("'"), 0xAB, 0xBB, 0x201C, 0x201D, 0x2018, 0x2019)
-)

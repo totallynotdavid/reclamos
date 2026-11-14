@@ -120,26 +120,6 @@ def query(settings: Settings, statement: str, *arguments: Any) -> list[Any]:
 
 
 @pytest.fixture
-def embedder() -> HashingEmbedder:
-    return HashingEmbedder()
-
-
-@pytest.fixture
-def settings(
-    database_url: str, tmp_path: Any, monkeypatch: pytest.MonkeyPatch
-) -> Settings:
-    monkeypatch.setenv("DATABASE_URL", database_url)
-    monkeypatch.setenv("PDF_STORE_PATH", str(tmp_path / "pdfs"))
-    return Settings.from_environment()
-
-
-@pytest.fixture
-def indexed(settings: Settings, embedder: HashingEmbedder, tmp_path: Any) -> Settings:
-    asyncio.run(seed_and_run(settings, embedder, tmp_path / "pdfs"))
-    return settings
-
-
-@pytest.fixture
 def client(indexed: Settings, embedder: HashingEmbedder) -> Iterator[httpx2.Client]:
     with TestClient(create_app(embedder)) as test_client:
         client: httpx2.Client = test_client
