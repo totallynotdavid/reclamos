@@ -8,9 +8,9 @@ not the whole body.
 from dataclasses import dataclass
 from typing import Any, cast
 
-from reclamos_api.answers.llm import LanguageModel, Prompt
-from reclamos_api.answers.spend import Budget, Ledger
 from reclamos_api.cards.card import FIELDS, Field
+from reclamos_api.llm.client import LanguageModel, Prompt
+from reclamos_api.llm.spend import Budget, Ledger
 
 MAX_JUDGE_TOKENS = 1_000
 

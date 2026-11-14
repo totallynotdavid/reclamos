@@ -34,19 +34,22 @@ the embedding model, `search.py` ranks and fuses, and `api.py` is the
 `POST /search` route. [Retrieval](retrieval.md) describes the chunk model, the
 indexes and fusion.
 
-`apps/api/src/reclamos_api/answers/` writes answers from those passages:
-`llm.py` calls the hosted language model behind the `LanguageModel` protocol,
+`apps/api/src/reclamos_api/llm/` calls the hosted language model offline:
+`client.py` holds the `LanguageModel` protocol and the Anthropic client,
 `spend.py` logs each call to `llm_calls` and refuses calls that could pass a
-spend limit, `answer.py` builds the prompt and checks every citation against its
-passage, `judge.py` scores faithfulness for the evaluation, `api.py` is the
-`POST /answer` route, and `commands.py` is `reclamos answers`.
-[Answers](answers.md) describes the refusal rules and the limits.
+spend limit, and `quotes.py` checks that a quote is in its text.
+[Model calls](llm.md) describes the limits.
 
 `apps/api/src/reclamos_api/cards/` writes one case card per resolution offline,
-through the same spend limits: `card.py` builds the prompt and checks each quote
+through those spend limits: `card.py` builds the prompt and checks each quote
 against the body, `judge.py` reads each field against its quotes,
 `repository.py` owns the `cards` table, and `commands.py` is `reclamos cards`.
 [Cards](cards.md) describes the check and the commands.
+
+`apps/api/src/reclamos_api/cases/` serves the visitor route: `find.py` groups
+the search results by resolution and attaches each served card, and `api.py` is
+`POST /cases`. No route calls a model. [Cases](cases.md) describes the threshold
+and the response.
 
 `apps/web/src/App.tsx` is the Spanish placeholder page. Vite builds it as a
 static client. `apps/web/vercel.json` owns the Vercel change filter for this
@@ -68,9 +71,9 @@ backend with native S3 locking; applying it is an operator action.
 
 ## Corpus state
 
-`llm_calls` holds one row per language model call. `answers/spend.py` owns it:
-it inserts the row before the call and settles it after.
-[Answers](answers.md#spend-limits) gives the rules.
+`llm_calls` holds one row per language model call. `llm/spend.py` owns it: it
+inserts the row before the call and settles it after.
+[Model calls](llm.md#spend-limits) gives the rules.
 
 Five tables of the database hold shared state: `resolutions` (one row per
 resolution), `chunks` (the passages of a resolution, with their vectors),

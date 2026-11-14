@@ -12,9 +12,9 @@ from dataclasses import dataclass, field
 from datetime import date
 from typing import Any, cast
 
-from reclamos_api.answers.llm import LanguageModel, Prompt
-from reclamos_api.answers.quotes import is_quoted
-from reclamos_api.answers.spend import Budget, Ledger
+from reclamos_api.llm.client import LanguageModel, Prompt
+from reclamos_api.llm.quotes import is_quoted
+from reclamos_api.llm.spend import Budget, Ledger
 
 # The longest body in the corpus is 47,053 characters (2026-11-14).
 MAX_CARD_PROMPT_CHARS = 60_000
